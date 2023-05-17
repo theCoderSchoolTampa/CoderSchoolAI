@@ -122,7 +122,7 @@ class SnakeEnv(Shell):
         - width: Width of the Grid
         - max_length_of_snake: Maximum length of the snake
         """
-        super().__init__(target_fps, is_user_control, resolution=(height*cell_size, width*cell_size))
+        super().__init__(target_fps, is_user_control, resolution=(height*cell_size, width*cell_size), environment_name="Snake-Env")
         self.height = height
         self.width = width
         self.cell_size = cell_size
@@ -148,6 +148,9 @@ class SnakeEnv(Shell):
                                              space= DiscreteType(n=4), 
                                              update_func=self.__update_game_state_callback))
         
+        # Misc Class Items
+        self.font = pygame.font.Font(None, 36)  # Default font for the text. 
+        
 
     def reset(self) -> Tuple[Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray], Union[int, float], Union[bool, np.ndarray]]:
         """
@@ -157,8 +160,10 @@ class SnakeEnv(Shell):
         if self._soft_reset:
             self._soft_reset = False
             self._apples_consumed += 1
+            
         else:
             self.snake_agent.reset_snake()
+            self._apples_consumed = 0
             self.__last_moving_direction = SnakeAgent.SnakeAction.RIGHT
         
         self.update_observation_variables()
@@ -173,7 +178,7 @@ class SnakeEnv(Shell):
         # This will update the proper moving direction of the Snake and update the game state
         self.__last_moving_direction = self.snake_agent._move_snake(action)
         # Updates the Observation Variables
-        print(action)
+        # print(action)
         reward, finished = self.get_current_reward()
         if not finished:
             self.update_observation_variables()
@@ -223,6 +228,8 @@ class SnakeEnv(Shell):
 
         state, reward, finished = self.step(action, d_t)
         if finished:
+            if self.consumed_apple():
+                self.snake_agent.increment_score()
             self.reset()
             
         self.render_env()
@@ -250,6 +257,11 @@ class SnakeEnv(Shell):
         # Draw the apple
         rect = pygame.Rect(self.apple_position[0] * self.cell_size, self.apple_position[1] * self.cell_size, self.cell_size, self.cell_size)
         pygame.draw.rect(self.screen, self.APPLE_COLOR, rect)
+        
+        #Draw the score
+        score_text = self.font.render(f'Score: {self._apples_consumed}', True, (225, 220, 128))
+        self.screen.blit(score_text, (self.width * self.cell_size - score_text.get_width() - 5, 5))  # Draw the score on the top right corner
+        
         pygame.display.flip()
 
     def get_user_action(self) -> SnakeAgent.SnakeAction:
@@ -260,7 +272,6 @@ class SnakeEnv(Shell):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-                exit(0)
         keys = pygame.key.get_pressed()
         if keys[pygame.K_s]:
             return SnakeAgent.SnakeAction.DOWN

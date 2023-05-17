@@ -21,6 +21,7 @@ class Shell:
                  target_fps: int = 30, # Target/Max Framerate to update the environment at.
                  is_user_control: bool = False, # Sets the environment as a user-controlled environment.
                  resolution: Tuple[int, int] = (84, 84), # Resolution of the environment
+                 environment_name: str = "Shell", # Name of the environment
                  ):
         self.target_fps = target_fps
         self.is_user_control = is_user_control
@@ -28,8 +29,10 @@ class Shell:
         self.ActionAttributes = dict()
         self.clock = pygame.time.Clock()
         self.resolution = resolution
+        self.environment_name = environment_name
         pygame.init()
         self.screen = pygame.display.set_mode(self.resolution)
+        pygame.display.set_caption(f"CoderSchoolAI: {self.environment_name}")
         
     def __getitem__(self, name):
         """ 
