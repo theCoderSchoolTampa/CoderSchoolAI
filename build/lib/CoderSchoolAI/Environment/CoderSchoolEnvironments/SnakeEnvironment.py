@@ -272,7 +272,6 @@ class SnakeEnv(Shell):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-                quit(0)
         keys = pygame.key.get_pressed()
         if keys[pygame.K_s]:
             return SnakeAgent.SnakeAction.DOWN
