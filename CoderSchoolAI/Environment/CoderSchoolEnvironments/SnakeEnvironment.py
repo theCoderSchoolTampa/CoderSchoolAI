@@ -23,6 +23,9 @@ from CoderSchoolAI.Util.data_utils import distance, euclidean_distance
 
 class SnakeAgent(Agent):
     class SnakeAction(IntEnum):
+        """
+        Actions that may be taken by the snake.
+        """
         LEFT = 0
         RIGHT = 1
         UP = 2
