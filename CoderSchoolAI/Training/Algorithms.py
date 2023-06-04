@@ -1,9 +1,13 @@
+import os
 import torch as th
+import pickle
+import numpy as np
 import torch.nn.functional as F
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 from CoderSchoolAI.Util.data_utils import dict_to_tensor
 from CoderSchoolAI.Environment.Agent import Agent, ReplayBuffer, BasicReplayBuffer, DictReplayBuffer
 from CoderSchoolAI.Environment.Shell import Shell
+from collections import defaultdict
 
 def deep_q_learning(
     agent: Agent, # Actor in the Environment
@@ -33,7 +37,7 @@ def deep_q_learning(
     if isinstance(agent.get_actions(), dict):
         raise ValueError("The action space for Deep Q Learning cannot be of type Dict.")
 
-    for episode in range(num_episodes):
+    for episode in range(1, num_episodes+1):
         state = environment.reset()
         done = False
         step = 0
@@ -99,3 +103,62 @@ def deep_q_learning(
         # Update the target network every `update_target_every` episodes
         if episode % update_target_every == 0:
             target_q_network.load_state_dict(q_network.state_dict())
+
+class FloatDict(defaultdict):
+    def __init__(self, *args):
+        super().__init__(float)
+        
+class QLearning:
+    def __init__(self, actions, alpha=0.5, gamma=0.9, epsilon=0.9, epsilon_decay=0.995, stop_epsilon=0.01):
+        self.alpha = alpha
+        self.gamma = gamma
+        self.epsilon = epsilon
+        self.epsilon_decay = epsilon_decay
+        self.stop_epsilon = stop_epsilon
+        self.actions = actions
+        self.q_table = defaultdict(FloatDict)
+
+    def choose_action(self, state):
+        if np.random.uniform(0, 1) < self.epsilon:
+            action = np.random.choice(self.actions)
+            self.epsilon *= self.epsilon_decay
+            self.epsilon = max(self.epsilon, self.stop_epsilon)
+        else:
+            action = max(list(range(len(self.actions))), key=lambda x: self.q_table[state][x])
+        return action
+
+    def update_q_table(self, state, action, reward, next_state):
+        old_value = self.q_table[state][action]
+        next_max = max(list(range(len(self.actions))), key=lambda x: self.q_table[next_state][x])
+        
+        new_value = (1 - self.alpha) * old_value + self.alpha * (reward + self.gamma * next_max)
+        self.q_table[state][action] = new_value
+        
+    def save_q_table(self, file_name):
+        """
+        This function stores a Q-Table as a pickle file.
+
+        Parameters:
+        q_table (dict): Q-Table to store.
+        file_name (str): Name of the file to store the Q-Table in (pickle format).
+        """
+        with open(file_name, 'wb') as f:
+            pickle.dump(self.q_table, f)
+
+
+    def load_q_table(self, file_name):
+        """
+        This function loads a Q-Table from a pickle file.
+
+        Parameters:
+        file_name (str): Name of the file to load the Q-Table from (pickle format).
+
+        Returns:
+        dict: Loaded Q-Table.
+        """
+        if not os.path.exists(file_name):
+            print('Cannot find file: {}'.format(file_name))
+            return
+        with open(file_name, 'rb') as f:
+            self.q_table = pickle.load(f)
+

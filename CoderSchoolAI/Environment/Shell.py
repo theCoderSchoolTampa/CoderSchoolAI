@@ -1,3 +1,4 @@
+import pkg_resources
 import numpy as np
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 '''
@@ -22,6 +23,8 @@ class Shell:
                  is_user_control: bool = False, # Sets the environment as a user-controlled environment.
                  resolution: Tuple[int, int] = (84, 84), # Resolution of the environment
                  environment_name: str = "Shell", # Name of the environment
+                 verbose= False, # Whether or not to print information to the terminal.
+                 console_only=False, # Makes the environment run only as a console application.
                  ):
         self.target_fps = target_fps
         self.is_user_control = is_user_control
@@ -30,9 +33,15 @@ class Shell:
         self.clock = pygame.time.Clock()
         self.resolution = resolution
         self.environment_name = environment_name
+        self.verbose = verbose
+        self.console_only = console_only
         pygame.init()
-        self.screen = pygame.display.set_mode(self.resolution)
-        pygame.display.set_caption(f"CoderSchoolAI: {self.environment_name}")
+        if not self.console_only:
+            self.screen = pygame.display.set_mode(self.resolution)
+            window_logo_res = pkg_resources.resource_filename('CoderSchoolAI', 'Assets/CoderSchoolAI/CoderSchoolAI-Logo.png')
+            window_logo = pygame.image.load(window_logo_res).convert()
+            pygame.display.set_icon(window_logo)
+            pygame.display.set_caption(f"CoderSchoolAI: {self.environment_name}")
         
     def __getitem__(self, name):
         """ 
@@ -58,6 +67,7 @@ class Shell:
                 attribs[name] = attr.data.copy()
             elif isinstance(attr.space, DiscreteType):
                 attribs[name] = attr.data
+        return attribs
     
     def register_attribute(self, attribute: Union[ObsAttribute, ActionAttribute]):
         """

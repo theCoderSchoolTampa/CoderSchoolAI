@@ -30,10 +30,7 @@ class Attribute:
         """
         Determines the shape of the attribute data.
         """
-        if isinstance(self.data, dict):
-            return {key: np.shape(value) for key, value in self.data.items()}
-        else:
-            return np.shape(self.data)
+        return np.shape(self.data)
     
     def update(self, data):
         """

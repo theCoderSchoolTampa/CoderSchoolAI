@@ -1,3 +1,5 @@
+import pkg_resources
+import sys
 import numpy as np
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 '''
@@ -17,12 +19,20 @@ SpaceType = Union[BoxType, DiscreteType, MultiDiscreteType, MultiBinaryType]
 from enum import IntEnum
 from collections import deque
 
+from CoderSchoolAI.Training.Algorithms import QLearning
 from CoderSchoolAI.Util.data_utils import distance, euclidean_distance 
 # They are the same function, some would rather use distance because it makes more sense.
 
 
 class SnakeAgent(Agent):
+    class ActionMode(IntEnum):
+        USER = 0        
+        QLearning = 1
+        
     class SnakeAction(IntEnum):
+        """
+        Actions that may be taken by the snake.
+        """
         LEFT = 0
         RIGHT = 1
         UP = 2
@@ -35,25 +45,35 @@ class SnakeAgent(Agent):
             SnakeAction.DOWN: (0, 1),
             SnakeAction.NOACTION: (0, 0),
         }
-    def __init__(self):
-        super().__init__()
+    def __init__(self,
+                 is_user_control:bool = False,
+                 is_q_table:bool = False,
+                 policy_kwargs=dict(alpha=0.5,gamma=0.9,epsilon=0.9, epsilon_decay=0.995, stop_epsilon=0.01),
+                 ):
+        super().__init__(is_user_control)
         self.body = deque([(i, 0) for i in range(3)])
         self.last_action = SnakeAgent.SnakeAction.RIGHT
         self._last_removed = None
+        self.is_q_table = is_q_table
+        if self.is_q_table:
+            self.qlearning = QLearning(self.get_actions(), **policy_kwargs)
+
         
     def _move_snake(self, action: 'SnakeAgent.SnakeAction') -> 'SnakeAgent.SnakeAction':
         """
         Moves the snake in the new direction, or the old direction if the snake direction has not changed (No Action).
         """
+        feedback = 0
         _head = self.body[-1]
         if action == SnakeAgent.SnakeAction.NOACTION or np.dot( self.DIRECTIONS[action], self.DIRECTIONS[self.last_action]) < 0:
+            feedback = -0.2 if action != SnakeAgent.SnakeAction.NOACTION else -0.05
             action = self.last_action
         _new_head = _head[0] + self.DIRECTIONS[action][0], _head[1] + self.DIRECTIONS[action][1]
         # print('Action: ', action, 'Pos:', _new_head)
         self._last_removed = self.body.popleft()
         self.body.append(_new_head)
         self.last_action = action
-        return action
+        return action, feedback
     
     def increment_score(self):
         """
@@ -81,10 +101,56 @@ class SnakeAgent(Agent):
             if _head[0] == self.body[i][0] and _head[1] == self.body[i][1]:
                 return True
         return False
+    
+    def get_q_table_state(self, state) ->Tuple:
+        """
+        State should contain:
+        - the (x,y) of the apple, 
+        - the direction (0, 1, 2, 3) of the snake, 
+        - the (x, y) of the head of the snake, 
+        """
+        a_x, a_y = state['apple_pos']
+        dir = state['moving_direction']
+        s_x, s_y = state['snake_pos']
+        return (a_x, a_y, s_x, s_y, dir)
+        
 
-    def get_next_action(self, state):
-        # Implement your logic here to return the next action based on the state
-        pass
+    def get_next_action(self, state) -> Tuple['SnakeAgent.SnakeAction', float]:
+        """
+        Gets the next action to take in the current state, and any feedback from the snake.
+        Returns:
+        -   Action to take in the current state.
+        """
+        events = pygame.event.get()
+        for event in events:
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+        if self.is_q_table:
+            state = self.get_q_table_state(state)
+            action = self.qlearning.choose_action(state)
+        elif self.is_user_control:
+            action = self.get_user_action(events)
+        else:
+            # implement your own logic here if not using Q-learning
+            pass
+        return action
+    
+    def get_user_action(self, events) -> 'SnakeAgent.SnakeAction':
+        """
+        This is an Example of how to use the user input to control the Snake.
+        """
+        # Process user input and return the corresponding action
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_s]:
+            return SnakeAgent.SnakeAction.DOWN
+        elif keys[pygame.K_a]:
+            return SnakeAgent.SnakeAction.LEFT
+        elif keys[pygame.K_d]:
+            return SnakeAgent.SnakeAction.RIGHT
+        elif keys[pygame.K_w]:
+            return SnakeAgent.SnakeAction.UP
+        return SnakeAgent.SnakeAction.NOACTION
 
     def update(self, state, action, next_state, reward):
         """
@@ -107,12 +173,16 @@ class SnakeEnv(Shell):
         
         
     def __init__(self, 
-                 target_fps=5, # Framerate at which the Game Loop will run
+                 target_fps=6, # Framerate at which the Game Loop will run
                  is_user_control=False, #Flag that indicates whether the user is controlling the environment or not
                  cell_size=20, # Number of pixels in a Cell
                  height=25, # Height of the Grid
                  width=25, # Width of the Grid
                  max_length_of_snake=100, # Maximum length of the snake
+                 verbose=False, # Flag that indicates whether the environment should print Environment Information
+                 snake_is_q_table=False, # Flag that indicates whether the snake is using Q-learning or not
+                 policy_kwargs=dict(alpha=0.5,gamma=0.9,epsilon=0.9, epsilon_decay=0.995, stop_epsilon=0.01), # Hyperparameters for the Q-learning algorithm
+                 console_only=False, # Makes the environment run only as a console application.
                  ):
         """
         - target_fps: Framerate at which the Game Loop will run
@@ -122,12 +192,12 @@ class SnakeEnv(Shell):
         - width: Width of the Grid
         - max_length_of_snake: Maximum length of the snake
         """
-        super().__init__(target_fps, is_user_control, resolution=(height*cell_size, width*cell_size), environment_name="Snake-Env")
+        super().__init__(target_fps, is_user_control, resolution=(height*cell_size, width*cell_size), verbose=verbose, environment_name="Snake-Env", console_only=console_only)
         self.height = height
         self.width = width
         self.cell_size = cell_size
         self.max_length_of_snake = max_length_of_snake
-        self.snake_agent = SnakeAgent()
+        self.snake_agent = SnakeAgent(self.is_user_control, snake_is_q_table, policy_kwargs)
         
         # Initialize game_state attributes, internal variables, and callbacks
         self.game_state = np.zeros((height, width, 1), dtype=np.float32)
@@ -135,19 +205,38 @@ class SnakeEnv(Shell):
         self.apple_position = self.spawn_new_apple()
         self._apples_consumed = 0
         self._soft_reset = False
-        
+        apple_res = pkg_resources.resource_filename('CoderSchoolAI', 'Assets/Snake/Apple.png')
+        self.apple_asset = pygame.image.load(apple_res).convert()
+        self.apple_asset = pygame.transform.scale(self.apple_asset, (self.cell_size, self.cell_size))
+
         """Register the Attributes"""
         # Game State Attribute
         self.register_attribute(ObsAttribute(name="game_state", 
         # Number of parameters in the environment to be trained on x height of image x width of image. In this case we are only training on object types.
                                              space= BoxType(shape=(1, height, width), low=0, high=1, dtype=np.float32), 
                                              update_func=self.__update_game_state_callback))
+        if self.verbose:
+            print('Registered: game_state Attribute.')
         # Moving Direction Attribute
         self.register_attribute(ObsAttribute(name="moving_direction",  
-        # Number of parameters in the environment to be trained on x height of image x width of image. In this case we are only training on object types.
-                                             space= DiscreteType(n=4), 
-                                             update_func=self.__update_game_state_callback))
-        
+                                             space= DiscreteType(n=1), 
+                                             update_func=self.__update_moving_direction_callback))
+        if self.verbose:
+            print('Registered: moving_direction Attribute.')
+        # Appple Position Attribute
+        self.register_attribute(ObsAttribute(name="apple_pos",  
+                                             space= MultiDiscreteType(
+                                                nvec=[self.height, self.width],
+                                                ), 
+                                             update_func=self.__update_apple_pos_callback))
+        if self.verbose:
+            print('Registered: apple_pos Attribute.')
+        # Snake Head Position Attribute
+        self.register_attribute(ObsAttribute(name="snake_pos",  
+                                             space= DiscreteType(n=2), 
+                                             update_func=self.__update_snake_head_callback))
+        if self.verbose:
+            print('Registered: snake_pos Attribute.')
         # Misc Class Items
         self.font = pygame.font.Font(None, 36)  # Default font for the text. 
         
@@ -156,6 +245,9 @@ class SnakeEnv(Shell):
         """
         Example of how to use the Reset Function to reset the Snake Environment.
         """
+        if self.verbose:
+            print('Resetting Apple Position.') if self._soft_reset else print('Resetting Snake.')
+
         self.apple_position = self.spawn_new_apple()
         if self._soft_reset:
             self._soft_reset = False
@@ -176,10 +268,12 @@ class SnakeEnv(Shell):
         Example of how to use the Step Function to control the Snake.
         """
         # This will update the proper moving direction of the Snake and update the game state
-        self.__last_moving_direction = self.snake_agent._move_snake(action)
+        self.__last_moving_direction, feedback = self.snake_agent._move_snake(action)
+        if self.verbose:
+            print(f'Taking Action: {action}')
         # Updates the Observation Variables
         # print(action)
-        reward, finished = self.get_current_reward()
+        reward, finished = self.get_current_reward(feedback)
         if not finished:
             self.update_observation_variables()
             for name, obs in self.ObsAttributes.items():
@@ -188,7 +282,7 @@ class SnakeEnv(Shell):
         # Returns the new game state, reward, and whether or not the Snake has reached the goal.
         return self.get_observation(), reward, finished
         
-    def get_current_reward(self) -> Tuple[Union[int, float], bool]:
+    def get_current_reward(self, feedback) -> Tuple[Union[int, float], bool]:
         """
         Note the Return Values:
             - Reward (Float) is the returned value of the Agent's Performance.
@@ -206,9 +300,13 @@ class SnakeEnv(Shell):
         is_in_bounds = self._is_snake_in_bounds()
         head_intersects_body = self.snake_agent.head_intersects_body()
         if not is_in_bounds or head_intersects_body:
+            if self.verbose:
+                print('Snake Has Intersected with a non-collidable area.')
             self._soft_reset = False
             return -1, True
         if apple_consumed:
+            if self.verbose:
+                print('Snake Has Consumed an Apple.')
             self._soft_reset = True
             return 1, True
         """
@@ -216,73 +314,64 @@ class SnakeEnv(Shell):
         """
         distance_penalty = -distance_to_apple / euclidean_distance((self.width, self.height), (0, 0))
         length_of_snake_reward = length_of_snake / self.max_length_of_snake
-        return distance_penalty + length_of_snake_reward, False
+        return (distance_penalty + length_of_snake_reward + feedback), False
         
     def update_env(self):
         d_t = self.clock.tick(self.target_fps) / 1000.0
-
-        if self.is_user_control:
-            action = self.get_user_action()
-        else:
-            action = self.snake_agent.get_next_action(self["game_state"].data)
-
-        state, reward, finished = self.step(action, d_t)
+        prev_state = self.get_observation()
+        action = self.snake_agent.get_next_action(prev_state)
+        
+        new_state, reward, finished = self.step(action, d_t)
+        if self.verbose:
+            print(f'Reward: {reward}')
+        if self.snake_agent.is_q_table:
+            self.snake_agent.qlearning.update_q_table(
+                self.snake_agent.get_q_table_state(prev_state), int(action), reward, self.snake_agent.get_q_table_state(new_state)
+                )
+        
         if finished:
             if self.consumed_apple():
                 self.snake_agent.increment_score()
             self.reset()
-            
+
         self.render_env()
 
     def render_env(self):
         """
         Renders the Snake Game to the screen Via PyGame.
         """
-        #Fills the world with the Blank Color
-        self.screen.fill(self.WORLD_COLOR)
-        for i in range(self.width):  # Assuming grid_size is the number of cells
-            pygame.draw.line(self.screen, (255, 255, 255), (i * self.cell_size, 0), (i * self.cell_size, self.width * self.cell_size))  # Vertical lines
-        for i in range(self.width):  # Assuming grid_size is the number of cells
-            pygame.draw.line(self.screen, (255, 255, 255), (0, i * self.cell_size), (self.height * self.cell_size, i * self.cell_size))  # Horizontal lines
-        # Draw the game state
-        for pos in self.snake_agent.body:
-                rect = pygame.Rect(pos[0] * self.cell_size, pos[1] * self.cell_size, self.cell_size, self.cell_size)
-                pygame.draw.rect(self.screen, self.BODY_COLOR, rect)
-        
-        # Draw the head of the snake
-        head_position = self.snake_agent.body[-1]
-        rect = pygame.Rect(head_position[0] * self.cell_size, head_position[1] * self.cell_size, self.cell_size, self.cell_size)
-        pygame.draw.rect(self.screen, self.HEAD_COLOR, rect)
-        
-        # Draw the apple
-        rect = pygame.Rect(self.apple_position[0] * self.cell_size, self.apple_position[1] * self.cell_size, self.cell_size, self.cell_size)
-        pygame.draw.rect(self.screen, self.APPLE_COLOR, rect)
-        
-        #Draw the score
-        score_text = self.font.render(f'Score: {self._apples_consumed}', True, (225, 220, 128))
-        self.screen.blit(score_text, (self.width * self.cell_size - score_text.get_width() - 5, 5))  # Draw the score on the top right corner
-        
-        pygame.display.flip()
+        if not self.console_only:
+            #Fills the world with the Blank Color
+            self.screen.fill(self.WORLD_COLOR)
+            # Draw the game state
+            for pos in self.snake_agent.body:
+                    rect = pygame.Rect(pos[0] * self.cell_size, pos[1] * self.cell_size, self.cell_size, self.cell_size)
+                    pygame.draw.rect(self.screen, self.BODY_COLOR, rect)
 
-    def get_user_action(self) -> SnakeAgent.SnakeAction:
-        """
-        This is an Example of how to use the user input to control the Snake.
-        """
-        # Process user input and return the corresponding action
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_s]:
-            return SnakeAgent.SnakeAction.DOWN
-        elif keys[pygame.K_a]:
-            return SnakeAgent.SnakeAction.LEFT
-        elif keys[pygame.K_d]:
-            return SnakeAgent.SnakeAction.RIGHT
-        elif keys[pygame.K_w]:
-            return SnakeAgent.SnakeAction.UP
-        return SnakeAgent.SnakeAction.NOACTION
+            # Draw the head of the snake
+            head_position = self.snake_agent.body[-1]
+            rect = pygame.Rect(head_position[0] * self.cell_size, head_position[1] * self.cell_size, self.cell_size, self.cell_size)
+            pygame.draw.rect(self.screen, self.HEAD_COLOR, rect)
+
+            # Draw the apple
+            # rect = pygame.Rect(self.apple_position[0] * self.cell_size, self.apple_position[1] * self.cell_size, self.cell_size, self.cell_size)
+            # pygame.draw.rect(self.screen, self.APPLE_COLOR, rect)
+            apple_rect = self.apple_asset.get_rect()
+            apple_rect.topleft = (self.apple_position[0]*self.cell_size, self.apple_position[1]*self.cell_size)
+            self.screen.blit(self.apple_asset, apple_rect)
             
+            # Draw the grid Lines
+            for i in range(self.width):  # Assuming grid_size is the number of cells
+                pygame.draw.line(self.screen, (255, 255, 255), (i * self.cell_size, 0), (i * self.cell_size, self.width * self.cell_size))  # Vertical lines
+            for i in range(self.width):  # Assuming grid_size is the number of cells
+                pygame.draw.line(self.screen, (255, 255, 255), (0, i * self.cell_size), (self.height * self.cell_size, i * self.cell_size))  # Horizontal lines
+            
+            #Draw the score
+            score_text = self.font.render(f'Score: {self._apples_consumed}', True, (225, 220, 128))
+            self.screen.blit(score_text, (self.width * self.cell_size - score_text.get_width() - 5, 5))  # Draw the score on the top right corner
+
+            pygame.display.flip()
+            pygame.display.update()    
     
     def update_observation_variables(self):
         """
@@ -302,6 +391,15 @@ class SnakeEnv(Shell):
         
     def __update_game_state_callback(self):
         self['game_state'].data = self.game_state.copy().transpose(2, 0, 1) / len(list(SnakeAgent.SnakeAction))
+    
+    def __update_moving_direction_callback(self):
+        self['moving_direction'].data = int(self.__last_moving_direction)
+        
+    def __update_apple_pos_callback(self):
+        self['apple_pos'].data = np.array(self.apple_position).copy()
+    
+    def __update_snake_head_callback(self):
+        self['snake_pos'].data = np.array(self.snake_agent.body[-1]).copy()
         
     def spawn_new_apple(self) -> Tuple[int, int]:
         """
@@ -321,6 +419,7 @@ class SnakeEnv(Shell):
         """
         head_position = self.snake_agent.body[-1]
         return (0 <= head_position[0] < self.width) and (0 <= head_position[1] < self.height)
+    
             
     
     

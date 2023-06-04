@@ -1,3 +1,6 @@
 # Package Install Files
-
 CoderSchoolAI.egg-info/
+build/
+Course/*.ipynb
+dist/
+MANIFEST.in

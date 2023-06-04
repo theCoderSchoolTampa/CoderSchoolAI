@@ -4,8 +4,9 @@ import numpy as np
 from CoderSchoolAI.Environment.Attributes import ObsAttribute, ActionAttribute
 
 class Agent:
-    def __init__(self):
+    def __init__(self, is_user_control=False):
         self.replay_buffer = None
+        self.is_user_control = is_user_control
     
     def get_actions(self):
         """
