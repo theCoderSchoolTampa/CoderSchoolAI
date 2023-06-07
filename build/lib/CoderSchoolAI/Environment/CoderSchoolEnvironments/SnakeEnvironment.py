@@ -21,6 +21,7 @@ from collections import deque
 
 from CoderSchoolAI.Training.Algorithms import QLearning
 from CoderSchoolAI.Util.data_utils import distance, euclidean_distance 
+from CoderSchoolAI.Util.search_utils import HeapQueue
 # They are the same function, some would rather use distance because it makes more sense.
 
 
@@ -48,6 +49,7 @@ class SnakeAgent(Agent):
     def __init__(self,
                  is_user_control:bool = False,
                  is_q_table:bool = False,
+                 is_search_enabled:bool = False,
                  policy_kwargs=dict(alpha=0.5,gamma=0.9,epsilon=0.9, epsilon_decay=0.995, stop_epsilon=0.01),
                  ):
         super().__init__(is_user_control)
@@ -55,6 +57,7 @@ class SnakeAgent(Agent):
         self.last_action = SnakeAgent.SnakeAction.RIGHT
         self._last_removed = None
         self.is_q_table = is_q_table
+        self.is_search_enabled = is_search_enabled
         if self.is_q_table:
             self.qlearning = QLearning(self.get_actions(), **policy_kwargs)
 
@@ -112,7 +115,8 @@ class SnakeAgent(Agent):
         a_x, a_y = state['apple_pos']
         dir = state['moving_direction']
         s_x, s_y = state['snake_pos']
-        return (a_x, a_y, s_x, s_y, dir)
+        d_x, d_y = a_x - s_x, a_y - s_y
+        return (d_x, d_y, s_x, s_y, dir)
         
 
     def get_next_action(self, state) -> Tuple['SnakeAgent.SnakeAction', float]:
@@ -131,6 +135,8 @@ class SnakeAgent(Agent):
             action = self.qlearning.choose_action(state)
         elif self.is_user_control:
             action = self.get_user_action(events)
+        elif self.is_search_enabled:
+            action = self.get_astar_action(state)
         else:
             # implement your own logic here if not using Q-learning
             pass
@@ -151,6 +157,49 @@ class SnakeAgent(Agent):
         elif keys[pygame.K_w]:
             return SnakeAgent.SnakeAction.UP
         return SnakeAgent.SnakeAction.NOACTION
+
+    def get_astar_action(self, state) -> 'SnakeAgent.SnakeAction':
+        """
+        A* search logic here and return the next action based on the result of A* search.
+        """ 
+        def find_path_astar(start, end, snake_body):
+                start = tuple(start)
+                end = tuple(end)
+                frontier = HeapQueue()
+                frontier.push((0, start))
+                c_from = {}
+                min_cost = {}
+                c_from[start] = None
+                min_cost[start] = 0
+        
+                while frontier.size() > 0:
+                    priority, pos = frontier.pop()
+                    if pos == end:
+                        break
+                    
+                    for action in list(SnakeAgent.SnakeAction):
+                        offset = SnakeAgent.DIRECTIONS[action]
+                        new_pos = (pos[0] + offset[0], pos[1] + offset[1])
+                        new_cost = min_cost[pos] + 1
+                        if new_pos not in c_from or new_cost < min_cost[new_pos] and not any([new_pos[0]==s[0] and new_pos[1]==s[1] for s in snake_body]):
+                            min_cost[new_pos] = new_cost
+                            priority = new_cost + distance(new_pos, end)
+                            frontier.push((priority, new_pos))
+                            c_from[new_pos] = (pos, action)
+
+                current = end
+                path = [current]
+                while current != start:
+                    current, action = c_from[current]
+                    path.append((current, action))
+                path.reverse()  # optional
+                return path
+        path = find_path_astar(state['snake_pos'], state['apple_pos'], self.body)
+        try:
+            print(path[0][1])
+            return path[0][1]
+        except IndexError:
+            return SnakeAgent.SnakeAction.NOACTION
 
     def update(self, state, action, next_state, reward):
         """
@@ -181,6 +230,7 @@ class SnakeEnv(Shell):
                  max_length_of_snake=100, # Maximum length of the snake
                  verbose=False, # Flag that indicates whether the environment should print Environment Information
                  snake_is_q_table=False, # Flag that indicates whether the snake is using Q-learning or not
+                 snake_is_search_enabled=False, # Flag that indicates whether the snake is using A* search or not
                  policy_kwargs=dict(alpha=0.5,gamma=0.9,epsilon=0.9, epsilon_decay=0.995, stop_epsilon=0.01), # Hyperparameters for the Q-learning algorithm
                  console_only=False, # Makes the environment run only as a console application.
                  ):
@@ -197,7 +247,7 @@ class SnakeEnv(Shell):
         self.width = width
         self.cell_size = cell_size
         self.max_length_of_snake = max_length_of_snake
-        self.snake_agent = SnakeAgent(self.is_user_control, snake_is_q_table, policy_kwargs)
+        self.snake_agent = SnakeAgent(self.is_user_control, snake_is_q_table, snake_is_search_enabled, policy_kwargs)
         
         # Initialize game_state attributes, internal variables, and callbacks
         self.game_state = np.zeros((height, width, 1), dtype=np.float32)
