@@ -15,6 +15,7 @@ def load(snake_env, steps=10000, save_file="./QSnakeAgent.pkl"):
     while s < steps:
         snake_env.update_env() # Update the environment in what we call a loop.
         s+=1
+
 snake_env = SnakeEnv(
     target_fps=6, 
     height=8,
