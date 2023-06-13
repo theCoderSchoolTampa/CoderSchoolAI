@@ -116,7 +116,21 @@ class SnakeAgent(Agent):
         dir = state['moving_direction']
         s_x, s_y = state['snake_pos']
         d_x, d_y = a_x - s_x, a_y - s_y
-        return (d_x, d_y, s_x, s_y, dir)
+        l = self.DIRECTIONS[SnakeAgent.SnakeAction.LEFT][0] + s_x, self.DIRECTIONS[SnakeAgent.SnakeAction.LEFT][1] + s_y
+        r = self.DIRECTIONS[SnakeAgent.SnakeAction.RIGHT][0] + s_x, self.DIRECTIONS[SnakeAgent.SnakeAction.RIGHT][1] + s_y
+        u = self.DIRECTIONS[SnakeAgent.SnakeAction.UP][0] + s_x, self.DIRECTIONS[SnakeAgent.SnakeAction.UP][1] + s_y
+        d = self.DIRECTIONS[SnakeAgent.SnakeAction.DOWN][0] + s_x, self.DIRECTIONS[SnakeAgent.SnakeAction.DOWN][1] + s_y
+        l_t, r_t, u_t, d_t = 1, 1, 1, 1
+        for pos in self.body:
+            if pos == l:
+                l_t = 0
+            elif pos == r:
+              r_t = 0
+            elif pos == u:
+                u_t = 0
+            elif pos == d:
+                d_t = 0
+        return (d_x, d_y, dir, l_t, r_t, u_t, d_t)
         
 
     def get_next_action(self, state) -> Tuple['SnakeAgent.SnakeAction', float]:

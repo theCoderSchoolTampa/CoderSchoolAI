@@ -16,6 +16,7 @@ class InputBlock(Block):
         super(InputBlock, self).__init__(b_type=Block.Type.INPUT, activation_function=None, device=device)
         self.in_attribute = in_attribute
         self._is_convolutional = False
+        self._needs_flatten = False
         self._is_mod_dict = is_module_dict
         if isinstance(in_attribute, dict):
             temp_dict_module = {}
@@ -71,16 +72,22 @@ class InputBlock(Block):
     def forward(self, x) -> th.Tensor:
         x = x.to(self.device)
         if self._is_mod_dict:
-            pass
+            join_block = self.forward_connections[self.in_attribute.keys()[0]].get_join_block()
+            dict_tnsr = []
+            for key, block in self.forward_connections.items():
+                dict_tnsr.append(block.forward(x[key]))
+            th.concat(dict_tnsr, dim=1)
         else:
             if self._is_convolutional:
                 if len(x.shape) < 4:
                     self.forward(x.unsqueeze(0))
-                return self.module(x)
+                    x = self.module(x)
+                    return self.forward_connections(x)
             # Linear
             if len(x.shape) < 2:
-                self.forward(x.unsqueeze(0))
-            return self.module(x)
+                x = self.module(x)
+                return self.forward_connections(x)
+        raise Exception("InputBlock.forward() expects a 2D or 3D tensor")
         
     def regenerate_network(self):
         """

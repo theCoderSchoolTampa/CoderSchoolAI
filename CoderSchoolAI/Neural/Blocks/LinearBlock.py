@@ -28,7 +28,7 @@ class LinearBlock(Block):
            - device (torch.device, optional): The device on which the computations will be performed. Default is 'cpu'.
         """
 
-        activation_function = activation if activation is not None else nn.ReLU()
+        activation_function = activation if activation is not None else nn.ReLU
         super(LinearBlock, self).__init__(b_type=Block.Type.LINEAR, activation_function=activation_function, device=device)
         """save these as self attributes"""
         self.input_size = input_size
@@ -43,18 +43,17 @@ class LinearBlock(Block):
             assert len(hidden_size) == self.num_hidden_layers # Ensure that hidden_size is a list of the same length as num_hidden_layers
             
         self.regenerate_network()
-    
-    @staticmethod
-    def get_join_block(input:Block,):
+
+    def get_join_block(self:Block,):
         """
         Will retrieve the shallowest JoinBlock in the network.
         """
-        if input.forward_connections is None:
+        if self.forward_connections is None:
             return None
-        if input.forward_connections.d_type == Block.Type.JOIN:
-            return input.forward_connections
+        if self.forward_connections.d_type == Block.Type.JOIN:
+            return self.forward_connections
         
-        return LinearBlock.get_join_block(input.forward_connections)
+        return self.get_join_block(self.forward_connections)
             
   
     def join_block(self, block: Block, key:str = None):
