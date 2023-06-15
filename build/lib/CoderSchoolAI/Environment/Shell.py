@@ -47,9 +47,11 @@ class Shell:
         """ 
         Returns an instance of the Attribute class for the specified attribute.
         """
+        if isinstance(name, tuple):
+            return {n: {**self.ObsAttributes, **self.ActionAttributes}.get(name, None) for n in name}
         return {**self.ObsAttributes, **self.ActionAttributes}.get(name, None)
 
-    def get_attribute(self, name):
+    def get_attribute(self, name) -> Union[Union[ObsAttribute, ActionAttribute], Dict[str, Union[ObsAttribute, ActionAttribute]]]:
         """
         Gets a reference for the specified attribute.
         Returns:
@@ -57,16 +59,32 @@ class Shell:
         """
         return self[name]
     
-    def get_observation(self) -> Dict[str, np.ndarray]:
+    def get_observation(self, attributes=None) -> Dict[str, np.ndarray]:
         """
         Gets an observation of the environment in the form of a dictionary and a numpy array.
         """
-        attribs = {}
-        for name, attr in self.ObsAttributes.items():
-            if isinstance(attr.space, BoxType) or isinstance(attr.space, MultiDiscreteType):
-                attribs[name] = attr.data.copy()
-            elif isinstance(attr.space, DiscreteType):
-                attribs[name] = attr.data
+        if attributes is None:
+            attribs = {}
+            for name, attr in self.ObsAttributes.items():
+                if isinstance(attr.space, BoxType) or isinstance(attr.space, MultiDiscreteType):
+                    attribs[name] = attr.data.copy()
+                elif isinstance(attr.space, DiscreteType):
+                    attribs[name] = attr.data
+        else:
+            if isinstance(attributes, tuple):
+                attribs = {}
+                for name, attr in self[attributes].items():
+                    if isinstance(attr.space, BoxType) or isinstance(attr.space, MultiDiscreteType):
+                        attribs[name] = attr.data.copy()
+                    elif isinstance(attr.space, DiscreteType):
+                        attribs[name] = attr.data
+            else:
+                attr = self[attributes]
+                if isinstance(attr.space, BoxType) or isinstance(attr.space, MultiDiscreteType):
+                    return attr.data.copy()
+                elif isinstance(attr.space, DiscreteType):
+                    return attr.data
+            
         return attribs
     
     def register_attribute(self, attribute: Union[ObsAttribute, ActionAttribute]):
@@ -98,14 +116,14 @@ class Shell:
         else:
             raise ValueError(f"The Attribute {name} is not contained in the Environment.")
     
-    def reset(self,) -> Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray]:
+    def reset(self, attributes=None) -> Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray]:
         """
         Resets the environment.
         Returns the Initial state of the Environment.
         """
         raise NotImplementedError("This method should be implemented in a subclass, not the Base Class Shell.")
     
-    def step(self, action: Union[int, np.ndarray, Dict[str, ActionAttribute]], d_t:float) -> Tuple[Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray], Union[int, float], Union[bool, np.ndarray]]:
+    def step(self, action: Union[int, np.ndarray, Dict[str, ActionAttribute]], d_t:float, attributes=None) -> Tuple[Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray], Union[int, float], Union[bool, np.ndarray]]:
         """
         Steps the environment with the specified action.
         Returns:

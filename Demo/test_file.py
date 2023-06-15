@@ -43,11 +43,37 @@
 
 
 ### Testing Neural Network ###
-
 from CoderSchoolAI.Environment.CoderSchoolEnvironments.SnakeEnvironment import *
 from CoderSchoolAI.Neural.Blocks import *
-snake_env = SnakeEnv()
-blocks = [
-    InputBlock(snake_env.get_attribute("game_state"), False),
-    ConvBlock(snake_env.get_attribute("game_state"), 32, 32)
-]
+from CoderSchoolAI.Neural.Net import *
+import torch as th
+snake_env = SnakeEnv(width=16, height=16)
+input_block = InputBlock(in_attribute=snake_env.get_attribute("game_state"), is_module_dict=False,)
+conv_block = ConvBlock(input_shape=input_block.in_attribute.space.shape,num_channels=1,depth=5,)
+out_block = OutputBlock(input_size=conv_block.output_size, num_classes=len(snake_env.snake_agent.get_actions()),)
+net = Net()
+net.add_block(input_block)
+net.add_block(conv_block)
+net.add_block(out_block)
+net.compile()
+input_sample = snake_env.get_attribute("game_state").sample()
+output_test = net(input_sample)
+copy_net = net.copy()
+output_copy_test = copy_net(input_sample)
+
+### Testing Algorithms ###
+from CoderSchoolAI.Training.Algorithms import deep_q_learning
+from CoderSchoolAI.Environment.Agent import BasicReplayBuffer
+batch_size = 32
+deep_q_learning(
+    agent=snake_env.snake_agent,
+    environment=snake_env,
+    q_network=copy_net,
+    target_q_network=net,
+    buffer= BasicReplayBuffer(batch_size),
+    num_episodes=1000,
+    max_steps_per_episode=100,
+    batch_size=batch_size,
+    alpha=0.01,
+    attributes="game_state",
+)

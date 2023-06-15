@@ -2,9 +2,6 @@ import pkg_resources
 import sys
 import numpy as np
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
-'''
-For more information regarding Spaces, see https://gym.openai.com/docs/spaces/
-'''
 import pygame
 import gymnasium as gym
 from gym.spaces import Box as BoxType
@@ -16,6 +13,9 @@ from CoderSchoolAI.Environment.Attributes import ObsAttribute, ActionAttribute
 from CoderSchoolAI.Environment.Agent import Agent
 from CoderSchoolAI.Environment.Shell import Shell
 SpaceType = Union[BoxType, DiscreteType, MultiDiscreteType, MultiBinaryType]
+"""
+For more information regarding Spaces, see https://gym.openai.com/docs/spaces/
+"""
 from enum import IntEnum
 from collections import deque
 
@@ -51,7 +51,10 @@ class SnakeAgent(Agent):
                  is_q_table:bool = False,
                  is_search_enabled:bool = False,
                  policy_kwargs=dict(alpha=0.5,gamma=0.9,epsilon=0.9, epsilon_decay=0.995, stop_epsilon=0.01),
-                 ):
+                ):
+        """
+        
+        """
         super().__init__(is_user_control)
         self.body = deque([(i, 0) for i in range(3)])
         self.last_action = SnakeAgent.SnakeAction.RIGHT
@@ -305,7 +308,7 @@ class SnakeEnv(Shell):
         self.font = pygame.font.Font(None, 36)  # Default font for the text. 
         
 
-    def reset(self) -> Tuple[Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray], Union[int, float], Union[bool, np.ndarray]]:
+    def reset(self, attributes=None) -> Tuple[Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray], Union[int, float], Union[bool, np.ndarray]]:
         """
         Example of how to use the Reset Function to reset the Snake Environment.
         """
@@ -325,9 +328,9 @@ class SnakeEnv(Shell):
         self.update_observation_variables()
         for name, obs in self.ObsAttributes.items():
             obs.update_func()
-        return self.get_observation()
+        return self.get_observation(attributes)
 
-    def step(self, action: Union[int, np.ndarray, Dict[str, ActionAttribute]], d_t: float):
+    def step(self, action: Union[int, np.ndarray, Dict[str, ActionAttribute]], d_t: float, attributes = None):
         """
         Example of how to use the Step Function to control the Snake.
         """
@@ -342,12 +345,15 @@ class SnakeEnv(Shell):
             self.update_observation_variables()
             for name, obs in self.ObsAttributes.items():
                 obs.update_func()
-        
+                
+        if self.consumed_apple():
+                self.snake_agent.increment_score()
         # Returns the new game state, reward, and whether or not the Snake has reached the goal.
-        return self.get_observation(), reward, finished
+        return self.get_observation(attributes), reward, finished
         
     def get_current_reward(self, feedback) -> Tuple[Union[int, float], bool]:
         """
+        
         Note the Return Values:
             - Reward (Float) is the returned value of the Agent's Performance.
             - Finished is a boolean (True/False) value that indicates whether or not the Snake has reached the goal.
@@ -357,6 +363,7 @@ class SnakeEnv(Shell):
             - The Distance from the Snake Head to the Apple,
             - The length of the Snake Body (minus the length of the snake at the Start),
             - Whether or not The Snake is Still inside of our Grid
+            
         """
         distance_to_apple = euclidean_distance(self.snake_agent.body[-1], self.apple_position)
         apple_consumed = self.consumed_apple()
@@ -384,7 +391,6 @@ class SnakeEnv(Shell):
         d_t = self.clock.tick(self.target_fps) / 1000.0
         prev_state = self.get_observation()
         action = self.snake_agent.get_next_action(prev_state)
-        
         new_state, reward, finished = self.step(action, d_t)
         if self.verbose:
             print(f'Reward: {reward}')
@@ -393,9 +399,7 @@ class SnakeEnv(Shell):
                 self.snake_agent.get_q_table_state(prev_state), int(action), reward, self.snake_agent.get_q_table_state(new_state)
                 )
         
-        if finished:
-            if self.consumed_apple():
-                self.snake_agent.increment_score()
+        if finished:                
             self.reset()
 
         self.render_env()
@@ -451,7 +455,7 @@ class SnakeEnv(Shell):
         """
         for position in self.snake_agent.body:
             self.game_state[position] = int(SnakeEnv.GameObjects.BODY) # Snake body
-        self.game_state[self.snake_agent.body[-1]] = int(SnakeEnv.GameObjects.APPLE) # Snake head
+        self.game_state[self.snake_agent.body[-1]] = int(SnakeEnv.GameObjects.HEAD) # Snake head
         
     def __update_game_state_callback(self):
         self['game_state'].data = self.game_state.copy().transpose(2, 0, 1) / len(list(SnakeAgent.SnakeAction))

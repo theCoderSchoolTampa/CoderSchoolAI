@@ -59,16 +59,15 @@ class LinearBlock(Block):
     def join_block(self, block: Block, key:str = None):
         """
         Linear Blocks can be joined with other LinearBlocks, JoinBlocks, or OutputBlocks.
-        
         - Throws an error if the input block is not of the types listed above.
         """
         if isinstance(block, Block):
-            if block.d_type == Block.Type.LINEAR:
+            if block.b_type == Block.Type.LINEAR:
                 if not self.output_size == block.input_size:
                     print(f"InputBlock.join_block() expects a LinearBlock with the same input_size as the Output of this block. Rebuilding the Block's Network.")
                     block.regenerate_network()
                 self.forward_connections = block
-            elif block.d_type == Block.Type.JOIN or block.d_type == Block.Type.OUTPUT:
+            elif block.b_type == Block.Type.JOIN or block.b_type == Block.Type.OUTPUT:
                 self.forward_connections = block
             else:
                 raise Exception(f"InputBlock.join_block() expects a LinearBlock, JoinBlock, or OutputBlock. Provided {type(block)}, {block}")
@@ -77,18 +76,17 @@ class LinearBlock(Block):
     
     def forward(self, x) -> th.Tensor:
         x = x.to(self.device)
-        if len(x.shape) < 2: # Ensure that the input is a vector
+        if len(x.shape) < 2: # Ensure that the input is a 2D Matrix
             self.forward(x.unsqueeze(0))
-        elif len(x.shape) > 2: # Ensure that the input is a matrix
-            x = x.squeeze(0)
-            return self.forward(x)
+        elif len(x.shape) > 2: # Ensure that the input is a 2D Matrix
+            return self.forward(x.squeeze(0))
         if x.shape[-1] != self.input_size:
             raise Exception(f"InputBlock.forward() expects a matrix of shape Batch Size x {self.input_size}, Provided Shape: {x.shape}")
         x = self.module(x)
-        if self.forward_connections is None or self.forward_connections.d_type == Block.Type.JOIN:
-            return x
+        if self.forward_connections is None or ( isinstance(self.forward_connections, dict) and len(self.forward_connections) == 0 ) or  self.forward_connections.d_type == Block.Type.JOIN:
+           return x
         # Another Linear Block or a Output Block
-        return self.forward_connections.forward(x)
+        return self.forward_connections(x)
             
         
     def regenerate_network(self):
@@ -114,15 +112,30 @@ class LinearBlock(Block):
                 )
             prev_size = layer_size[i]
         self.module = nn.Sequential(*layers)
+                    
+    def copy(self):
+        """
+        Copies a LinearBlock to a new LinearBlock with the same parameters.
+        """
+        new_copy = LinearBlock(self.input_size, 
+                             self.output_size, 
+                             self.num_hidden_layers, 
+                             self.hidden_size, 
+                             self.dropout, 
+                             self.activation_function, 
+                             self.device)
+        new_copy.module.load_state_dict(self.module.state_dict())
+        return new_copy   
     
-        
-                
-                
-                
-            
+    def __repr__(self) -> str:
+        return self.__str__()
     
-                
-                    
-                    
-                    
-        
+    def __str__(self) -> str:
+        res = ""
+        res+=f"{type(self).__module__}.{type(self).__qualname__}>,\n"
+
+        for name, module in self.named_modules():
+            if isinstance(module, nn.Sequential):
+                for i, m in enumerate(module):
+                    res += (f"  ({i}): {repr(m)}\n")      
+        return res

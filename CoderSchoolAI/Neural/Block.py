@@ -5,9 +5,14 @@ from CoderSchoolAI.Environment.Attributes import *
 import numpy as np
 from enum import Enum
 
+class Identity(nn.Module):
+        def __init__(self):
+            super(Identity, self).__init__()
+
+        def forward(self, x):
+            return x
+        
 class Block (nn.Module):
-    
-    empty_layer = lambda x: lambda y: y
     
     class Type(Enum):
             INPUT=0
@@ -17,11 +22,11 @@ class Block (nn.Module):
             OUTPUT=4
     
     def __init__(self, b_type, device: th.device = th.device('cpu'), activation_function: Callable = nn.ReLU,):
-        super.__init__()
+        super(Block, self).__init__()
         self.device = device
         self.to(device)
         self.b_type = b_type
-        self.activation_function = activation_function if activation_function is not None else Block.empty_layer
+        self.activation_function = activation_function if activation_function is not None else Identity
         self.forward_connections = dict()
         """
         Each key is a forward connection for a list input. 
@@ -45,4 +50,8 @@ class Block (nn.Module):
         """
         raise NotImplementedError('This method must be implemented in the Child Block')
     
-        
+    def copy(self):
+        """
+        This function is used to copy a Deep Neural Network Block.
+        """
+        raise NotImplementedError('This method must be implemented in the Child Block')    

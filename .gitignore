@@ -4,3 +4,7 @@ build/
 Course/*.ipynb
 dist/
 MANIFEST.in
+
+# Data Files
+*.pt
+*.pkl
