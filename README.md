@@ -167,8 +167,6 @@ Please note that the use of "type" and "specification" in the docstrings seems t
 
 For example, a Box space represents an n-dimensional box, so valid observations will be an array of 4 numbers for a Box(4) space. Similarly, a Discrete space is a set of non-negative numbers {0, 1, ..., n-1}. It is used for a fixed range of non-negative numbers. The spaces dictate the form and limits of the attributes.
 
-# CoderSchoolAI.Environment Documentation (Cont.) #
-
 ## Agent Class
 The Agent class represents an AI agent interacting with an environment. 
 
@@ -240,6 +238,78 @@ class DictReplayBuffer(ReplayBuffer):
 
 - `clear_memory(self)`: Clears all the experiences stored in the replay buffer. It clears the memory for each state-action pair separately in this case.
 
+## Example Usage
+
+This section provides an example of how to use a custom environment class that extends the base `Shell` class provided by the `CoderSchoolAI` library. For the purposes of this demonstration, we will create a dummy environment and a dummy agent to illustrate the workflow.
+
+Please note that this is a high-level example, and the specific methods and variables will depend on your particular environment and agents' specifics.
+
+### Step 1: Define your Environment Class
+
+Your environment should extend the `Shell` class. You need to implement methods such as `reset()`, `step()`, `get_current_reward()`, `update_env()`, and `render_env()`.
+
+```python
+class MyEnvironment(Shell):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Initialize environment specific variables
+
+    def reset(self, attributes=None):
+        # Reset environment to the initial state
+        pass
+
+    def step(self, action, d_t, attributes=None):
+        # Step the environment and return the new state, reward and done flag
+        pass
+
+    def get_current_reward(self, action, current_state):
+        # Return the reward for the current state and action
+        pass
+
+    def update_env(self):
+        # Update the environment's state
+        pass
+
+    def render_env(self):
+        # Render the environment
+        pass
+```
+
+### Step 2: Define your Agent Class
+
+Your agent should have a method `get_next_action(state)` that takes in a state and returns an action. You may also need to implement other functions depending on your agent's learning algorithm.
+
+```python
+class MyAgent:
+    def __init__(self, *args, **kwargs):
+        # Initialize agent specific variables
+
+    def get_next_action(self, state):
+        # Decide the next action based on the current state
+        pass
+```
+
+### Step 3: Run the Environment
+
+With the environment and agent classes defined, you can now run your reinforcement learning experiment. Here is a simplified loop:
+
+```python
+my_env = MyEnvironment()  # Initialize your environment
+my_agent = MyAgent()  # Initialize your agent
+
+while True:  # Loop for each episode
+    state = my_env.reset()  # Reset the environment
+    done = False
+    while not done:  # Loop for each step of the episode
+        action = my_agent.get_next_action(state)  # Get an action from the agent
+        state, reward, done = my_env.step(action)  # Step the environment
+        my_env.update_env()  # Update the environment
+        my_env.render_env()  # Render the environment (if applicable)
+```
+
+This code provides a generic example of how to use your custom environment and agent. Depending on the specifics of your classes and the reinforcement learning algorithm you're using, you may need to modify this template to fit your needs.
+
+Remember to adhere to the rules of your environment and the agent's decision-making algorithm. Reinforcement learning can be complex, and small errors can have large impacts on your results.
 
 # CoderSchoolAI.Neural Documentation #
 
