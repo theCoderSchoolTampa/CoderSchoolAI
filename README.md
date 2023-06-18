@@ -8,9 +8,6 @@ Linkedin: https://www.linkedin.com/in/jonathanzkoch
 
 Email: johnnykoch02@gmail.com
 
-
-This project is released under the MIT License. Any use of this library is permitted provided that credit is given to the authors of the library. 
-
 ---
 
 CoderSchoolAI is a comprehensive, open-source library designed to facilitate artificial intelligence learning and development, particularly focusing on reinforcement learning. The library offers a suite of easy-to-use tools and structures to create, train, and test reinforcement learning agents. These include, but are not limited to, various types of neural networks, state-of-the-art training algorithms, different environment shells, and buffer functionalities for experience replay.
