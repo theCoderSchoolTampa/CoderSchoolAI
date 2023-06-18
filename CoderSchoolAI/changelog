@@ -1,0 +1,5 @@
+[Jonathan Koch] - [06/18/2023] - [N/A]:
+        [Modifying Neural.Net Class]: 
+            - Added CUDA support
+        [Modifying Neural.Block Class]:
+            - Added CUDA support

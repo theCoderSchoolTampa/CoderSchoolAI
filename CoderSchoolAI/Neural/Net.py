@@ -37,7 +37,7 @@ class Net (nn.Module):
         # else:
         if self.__compiled:
             raise Exception("Cannot add a block to a network that has already been compiled.")
-        
+        block.set_device(self.device)
         self.blocks.append(block)
 
     def compile(self):

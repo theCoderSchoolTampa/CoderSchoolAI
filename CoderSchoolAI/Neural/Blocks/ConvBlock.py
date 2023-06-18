@@ -109,11 +109,11 @@ class ConvBlock(Block):
         x = th.zeros(self.input_shape).unsqueeze(0)
         for l in layers:
             x = l(x)
-        self.output_size = x.shape[1]
+        self.output_size = int(x.shape[1])
         if self._desired_output_size is not None:
             layers.append(nn.Linear(self.output_size, self._desired_output_size, device=self.device))
             layers.append(self.activation_function())
-            self.output_size = self._desired_output_size
+            self.output_size = int(self._desired_output_size)
         self.module = nn.Sequential(*layers)
     
     def copy(self):

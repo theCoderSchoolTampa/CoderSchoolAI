@@ -54,4 +54,9 @@ class Block (nn.Module):
         """
         This function is used to copy a Deep Neural Network Block.
         """
-        raise NotImplementedError('This method must be implemented in the Child Block')    
+        raise NotImplementedError('This method must be implemented in the Child Block')
+    
+    def set_device(self, device: th.device):
+        self.device = device
+        self.to(device)
+        self.regenerate_network()    

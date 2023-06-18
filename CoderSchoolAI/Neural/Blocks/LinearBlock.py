@@ -96,12 +96,12 @@ class LinearBlock(Block):
         if self._use_custom_hidden:
             layer_size = np.concatenate(self.hidden_size, [self.output_size])
         else:
-            layer_size = np.concatenate(np.full((self.num_hidden_layers,), self.hidden_size), [self.output_size])
+            layer_size = np.concatenate([np.full((self.num_hidden_layers,), self.hidden_size), [self.output_size]])
         layers = []
         prev_size = self.input_size
         for i in range(len(layer_size)):
             layers.append(
-                nn.Linear(prev_size, layer_size[i], device=self.device)
+                nn.Linear(int(prev_size), int(layer_size[i]), device=self.device)
             )    
             layers.append(
                 self.activation_function()

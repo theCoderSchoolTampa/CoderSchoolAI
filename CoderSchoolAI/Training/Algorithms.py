@@ -125,17 +125,15 @@ def deep_q_learning(
 
                 # Get current Q-values
                 current_q_values = q_network(states)
-                current_q_values_for_actions = current_q_values.gather(1, actions).squeeze(-1)
+                current_q_values_for_actions = current_q_values.gather(1, actions)
                 # Get next Q-values from target network
                 next_q_values = target_q_network(states)
                 max_next_q_values, _ = next_q_values.max(dim=1)
                 # Compute target Q-values
                 target_q_values =  rewards + gamma * (1 - dones.float()) * max_next_q_values
-                target_q_values = th.unsqueeze(target_q_values, 0)
+                target_q_values = th.unsqueeze(target_q_values, 1)
                 # Compute loss
-                loss = F.mse_loss(current_q_values_for_actions, target_q_values.detach())
-
-                
+                loss = F.mse_loss(current_q_values_for_actions, target_q_values.detach())                
                 
                 # Zero gradients
                 optimizer.zero_grad()
