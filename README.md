@@ -3,8 +3,11 @@
 The following is a full documentation write-up of the CoderSchoolAI library. For more information on how to use this library in an educational environment, feel free to contact the author of this library, Jonathan Koch, via:
 
 Twitter: https://twitter.com/jonathanzkoch
+
 Linkedin: https://www.linkedin.com/in/jonathanzkoch
+
 Email: johnnykoch02@gmail.com
+
 
 This project is released under the MIT License. Any use of this library is permitted provided that credit is given to the authors of the library. 
 
