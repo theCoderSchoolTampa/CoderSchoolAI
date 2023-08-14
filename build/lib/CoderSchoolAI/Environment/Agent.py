@@ -30,7 +30,6 @@ class Agent:
 
 class ReplayBuffer:
     def __init__(self, batch_size):
-        super().__init__()
         self.batch_size = batch_size
         self.clear_memory()
 
