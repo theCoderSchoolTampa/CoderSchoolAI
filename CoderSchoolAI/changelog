@@ -3,3 +3,8 @@
             - Added CUDA support
         [Modifying Neural.Block Class]:
             - Added CUDA support
+
+[Jonathan Koch] - [08/14/2023] - [N/A]:
+        [Changed Env.ReplayBuffer Class]: 
+            - Fixed DictReplayBuffer: Added prior key registration
+            - Added size() cls func for getting length of batch

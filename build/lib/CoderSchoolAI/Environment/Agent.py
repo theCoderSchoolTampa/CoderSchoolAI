@@ -30,6 +30,7 @@ class Agent:
 
 class ReplayBuffer:
     def __init__(self, batch_size):
+        super().__init__()
         self.batch_size = batch_size
         self.clear_memory()
 
@@ -41,13 +42,16 @@ class ReplayBuffer:
 
     def clear_memory(self):
         raise NotImplementedError("This method should be implemented in a subclass.")
+    
+    def size(self,) -> int: # Assuming self.states
+        return len(self.states)
 
 
 class BasicReplayBuffer(ReplayBuffer):
     def __init__(self, batch_size):
         super().__init__(batch_size)
 
-    def generate_batches(self):
+    def generate_batches(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         n_states = len(self.states)
         batch_start = np.arange(0, n_states, self.batch_size)
         indicies = np.arange(n_states, dtype=np.int64)
@@ -62,7 +66,7 @@ class BasicReplayBuffer(ReplayBuffer):
                 np.array(self.dones),\
                 batches
 
-    def store_memory(self, state, action, probs, vals, reward, done):
+    def store_memory(self, state, action, probs, vals, reward, done) -> None:
         self.states.append(state)
         self.actions.append(action)
         self.probs.append(probs)
@@ -70,7 +74,7 @@ class BasicReplayBuffer(ReplayBuffer):
         self.rewards.append(reward)
         self.dones.append(done)
 
-    def clear_memory(self):
+    def clear_memory(self) -> None:
         self.states = []
         self.actions = []
         self.probs = []
@@ -79,11 +83,20 @@ class BasicReplayBuffer(ReplayBuffer):
         self.dones = []
 
 
-class DictReplayBuffer(ReplayBuffer):
-    def __init__(self, batch_size):
-        super().__init__(batch_size)
 
-    def generate_batches(self):
+class DictReplayBuffer(ReplayBuffer):
+    def __init__(self, batch_size, dict_keys=None, act_keys=None):
+        """
+        Replay Buffer that supports Dictionary and Non-dictionary Observation/Action spaces.
+        Batch Size: desired batch size for each generation
+        
+        """
+        super().__init__(batch_size)
+        self.dict_keys = dict_keys
+        self.act_keys = act_keys
+
+    def generate_batches(self) -> Tuple[Union[Dict, np.ndarray], Union[Dict, np.ndarray], np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Generates a batch for the rollout data, Returns: [States, Actions, Probabilities, Values, Rewards, dones]"""
         n_states = len(self.states)
         batch_start = np.arange(0, n_states, self.batch_size)
         indicies = np.arange(n_states, dtype=np.int64)
@@ -98,7 +111,8 @@ class DictReplayBuffer(ReplayBuffer):
                 np.array(self.dones),\
                 batches
 
-    def store_memory(self, state, action, probs, vals, reward, done):
+    def store_memory(self, state, action, probs, vals, reward, done) -> None:
+        """Stores memory transition as one step in a batch"""
         for key, value in state.items():
             self.states[key].append(value)
         for key, value in action.items():
@@ -107,10 +121,13 @@ class DictReplayBuffer(ReplayBuffer):
         self.vals.append(vals)
         self.rewards.append(reward)
         self.dones.append(done)
+        
+    
 
-    def clear_memory(self):
-        self.states = {key: [] for key in self.states.keys()}
-        self.actions = {key: [] for key in self.actions.keys()}
+    def clear_memory(self) -> None:
+        """Clears the memory from the current batch cycle"""
+        self.states = {key: [] for key in self.dict_keys} if self.dict_keys is not None else []
+        self.actions = {key: [] for key in self.act_keys} if self.act_keys is not None else []
         self.probs = []
         self.vals = []
         self.rewards = []

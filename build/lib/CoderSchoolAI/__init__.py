@@ -20,7 +20,8 @@ Algorithms Available:
 The goal of this module is to make Agent AI and machine learning more accessible and enjoyable to learn.
 
 Future Enhancements:
-
+ - Adding {Join/Split/Add} support for Creating Network Chains.
+ - Adding Support for Neural Block Graph Architectures.
  - Support for multiple agents/bots in a single game.
  - PPO, DDPG, SAC, TD3, PPO2, DDPG2, SAC2
 
@@ -31,8 +32,21 @@ Development Environment:
 
 Contribution Guidelines:
  - Pull from GitHub: https://github.com/theCoderSchoolTampa/CoderSchoolAI/CoderSchoolAI/blob/master/
- - Create a Pull Request: https://github.com/theCoderSchoolTampa/CoderSchoolAI/CoderSchoolAI/pulls/
+ 
+ - Make Desired Changes to source code
+ 
  - Document Changelog: 
+        Format [Name] - [Date] - [PR #]:
+        - [Change]: 
+            [Description]
+        - [Change]:
+            [Description]
+            
+ - Edit README.md Documentation if Applicable
+ 
+ - Create a Pull Request: https://github.com/theCoderSchoolTampa/CoderSchoolAI/CoderSchoolAI/pulls/
+ 
+ - Grab a Cup o' Joe, and know that I appreciate you for contributing work to this project :D
 
 """
 
