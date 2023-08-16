@@ -90,9 +90,9 @@ class DictReplayBuffer(ReplayBuffer):
         Batch Size: desired batch size for each generation
         
         """
-        super().__init__(batch_size)
         self.dict_keys = dict_keys
         self.act_keys = act_keys
+        super().__init__(batch_size)
 
     def generate_batches(self) -> Tuple[Union[Dict, np.ndarray], Union[Dict, np.ndarray], np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Generates a batch for the rollout data, Returns: [States, Actions, Probabilities, Values, Rewards, dones]"""
