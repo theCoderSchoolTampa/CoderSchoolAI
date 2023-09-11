@@ -43,7 +43,7 @@ class ReplayBuffer:
         raise NotImplementedError("This method should be implemented in a subclass.")
     
     def size(self,) -> int: # Assuming self.states
-        return len(self.states)
+        return len(self.probs)
 
 
 class BasicReplayBuffer(ReplayBuffer):
@@ -56,7 +56,6 @@ class BasicReplayBuffer(ReplayBuffer):
         indicies = np.arange(n_states, dtype=np.int64)
         np.random.shuffle(indicies)
         batches = [indicies[i:i+self.batch_size] for i in batch_start]
-
         return np.array(self.states),\
                 np.array(self.actions),\
                 np.array(self.probs),\
@@ -90,9 +89,9 @@ class DictReplayBuffer(ReplayBuffer):
         Batch Size: desired batch size for each generation
         
         """
-        super().__init__(batch_size)
         self.dict_keys = dict_keys
         self.act_keys = act_keys
+        super().__init__(batch_size)
 
     def generate_batches(self) -> Tuple[Union[Dict, np.ndarray], Union[Dict, np.ndarray], np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Generates a batch for the rollout data, Returns: [States, Actions, Probabilities, Values, Rewards, dones]"""
@@ -101,9 +100,9 @@ class DictReplayBuffer(ReplayBuffer):
         indicies = np.arange(n_states, dtype=np.int64)
         np.random.shuffle(indicies)
         batches = [indicies[i:i+self.batch_size] for i in batch_start]
-
-        return {key: np.array(value) for key, value in self.states.items()},\
-                {key: np.array(value) for key, value in self.actions.items()},\
+        s = np.array(self.states) if not isinstance(self.states, dict) else {key: np.array(value) for key, value in self.states.items()}
+        a =  np.array(self.actions) if not isinstance(self.actions, dict) else {key: np.array(value) for key, value in self.actions.items()}
+        return s, a, \
                 np.array(self.probs),\
                 np.array(self.vals),\
                 np.array(self.rewards),\
@@ -112,10 +111,14 @@ class DictReplayBuffer(ReplayBuffer):
 
     def store_memory(self, state, action, probs, vals, reward, done) -> None:
         """Stores memory transition as one step in a batch"""
-        for key, value in state.items():
-            self.states[key].append(value)
-        for key, value in action.items():
-            self.actions[key].append(value)
+        if self.dict_keys is not None: # Differentiate between Dictionary and Normal
+            for key, value in state.items():
+                self.states[key].append(value)
+        else: self.states.append(state)
+        if self.act_keys is not None:
+            for key, value in action.items():
+                self.actions[key].append(value)
+        else: self.actions.append(action)
         self.probs.append(probs)
         self.vals.append(vals)
         self.rewards.append(reward)
