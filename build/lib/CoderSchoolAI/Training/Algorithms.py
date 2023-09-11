@@ -9,7 +9,7 @@ from CoderSchoolAI.Environment.Agent import Agent, ReplayBuffer, BasicReplayBuff
 from CoderSchoolAI.Environment.Shell import Shell
 from CoderSchoolAI.Neural.Net import Net
 from collections import defaultdict
-
+   
 def deep_q_learning(
     agent: Agent, # Actor in the Environment
     environment: Shell, # Environment which the Deep Q Network is being trained on 
@@ -61,39 +61,43 @@ def deep_q_learning(
     - optimizer_kwargs: Optional[Dict[str, Any]] = None, Additional keyword arguments
     
     """
-    # Check if the action space is dictionary type
     target_q_network.train()
     q_network.train()
+    episode = 1
     optimizer = th.optim.Adam(q_network.parameters(), lr=alpha) if optimizer is None else optimizer
     if isinstance(agent.get_actions(), dict):
         raise ValueError("The action space for Deep Q Learning cannot be of type Dict.")
 
-    for episode in range(1, num_episodes+1):
-        environment.clock.tick(fps)
+    def collect_rollouts():
         state = environment.reset(attributes)
         done = False
         step = 0
+        while not buffer.size() > batch_size:
+            environment.clock.tick(fps)
+            if done:
+                state = environment.reset()
+                done = False
+                step = 0
+                episode+=1
 
-        while not done and step < max_steps_per_episode:
-            step += 1
-            
             # Get list of possible actions from agent
             possible_actions = agent.get_actions()
-                
+
             # Convert state to tensor for feeding into the network
             if isinstance(buffer, BasicReplayBuffer):
                 state_tensor = th.tensor(state, dtype=th.float32)
             else:
                 state_tensor = dict_to_tensor(state, q_network.device)
+
             state_tensor = th.unsqueeze(state_tensor, 0)
-            
+
             # Feed the state into the q_network to get Q-values for each action
             q_values = q_network(state_tensor)
 
             # Choose action with highest Q-value
             _, action_index = th.max(q_values, dim=1)
             action = possible_actions[action_index.item()]
-            
+
             if np.random.uniform(0, 1) < epsilon:
                 action = np.random.choice(possible_actions)
                 epsilon *= epsilon_decay
@@ -103,50 +107,52 @@ def deep_q_learning(
             next_state, reward, done = environment.step(action, 0, attributes)
 
             # Store transition in the replay buffer state, action, probs, vals, reward, done
-            buffer.store_memory(state, action, 0, 0, reward, done)
+            buffer.store_memory(state, action, 0, 0, reward, done, next_state)
             # Update the state
             state = next_state
+            step += 1
             environment.render_env()
-
-            # If the replay buffer contains enough samples, then perform an update on the Q-network
-            if len(buffer.states) > batch_size:
-                # Sample a batch from the replay buffer
-                states, actions, _, _, rewards, dones, batches = buffer.generate_batches()
-                buffer.clear_memory()
-                # Convert to tensors
-                if isinstance(buffer, BasicReplayBuffer):
-                    states = th.tensor(states, dtype=th.float32)
-                else:
-                    states = dict_to_tensor(states)
-                actions = th.tensor(actions, dtype=th.int64)
-                actions = actions.unsqueeze(-1)
-                rewards = th.tensor(rewards, dtype=th.float32)
-                dones = th.tensor(dones, dtype=th.bool)
-
-                # Get current Q-values
-                current_q_values = q_network(states)
-                current_q_values_for_actions = current_q_values.gather(1, actions)
-                # Get next Q-values from target network
-                next_q_values = target_q_network(states)
-                max_next_q_values, _ = next_q_values.max(dim=1)
-                # Compute target Q-values
-                target_q_values =  rewards + gamma * (1 - dones.float()) * max_next_q_values
-                target_q_values = th.unsqueeze(target_q_values, 1)
-                # Compute loss
-                loss = F.mse_loss(current_q_values_for_actions, target_q_values.detach())                
                 
-                # Zero gradients
-                optimizer.zero_grad()
+                                                # TODO: figure out: Check if the action space is dictionary type ???
+    while episode < num_episodes+1:
+            # Collect samples, then perform an update on the Q-network
+            collect_rollouts()
+            # Sample a batch from the replay buffer
+            states, actions, _, _, rewards, dones, next_states, batches = buffer.generate_batches()
+            buffer.clear_memory()
+            # Convert to tensors
+            if isinstance(buffer, BasicReplayBuffer):
+                states = th.tensor(states, dtype=th.float32)
+                next_states = th.tensor(next_states, dtype=th.float32)
+            else:
+                states = dict_to_tensor(states)
+                next_states = dict_to_tensor(next_states)
+                
+            actions = th.tensor(actions, dtype=th.int64)
+            actions = actions.unsqueeze(-1)
+            rewards = th.tensor(rewards, dtype=th.float32)
+            dones = th.tensor(dones, dtype=th.bool)
 
-                # Backpropagation
-                loss.backward()
+            # Get current Q-values
+            current_q_values = q_network(states)
+            current_q_values_for_actions = current_q_values.gather(1, actions)
+            # Get next Q-values from target network
+            next_q_values = target_q_network(next_states)
+            max_next_q_values, _ = next_q_values.max(dim=1)
+            # Compute target Q-values
+            target_q_values =  rewards + gamma * (1 - dones.float()) * max_next_q_values
+            target_q_values = th.unsqueeze(target_q_values, 1)
+            # Compute loss
+            loss = F.mse_loss(current_q_values_for_actions, target_q_values.detach())                
+            
+            # Update
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-                # Update the weights
-                optimizer.step()
-
-        # Update the target network every `update_target_every` episodes
-        if episode % update_target_every == 0:
-            target_q_network = q_network.copy()
+            # Update the target network every `update_target_every` episodes
+            if episode % update_target_every == 0:
+                target_q_network = q_network.copy()
 
 class FloatDict(defaultdict):
     def __init__(self, *args):
