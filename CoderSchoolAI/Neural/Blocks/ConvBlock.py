@@ -39,7 +39,7 @@ class ConvBlock(Block):
         self.disable_max_pool = disable_max_pool
         self.regenerate_network()
     
-    def get_join_block(input:Block,):
+    def _get_join_block(input:Block,):
         """
         Will retrieve the shallowest JoinBlock in the network.
         """
@@ -48,7 +48,7 @@ class ConvBlock(Block):
         if input.forward_connections.d_type == Block.Type.JOIN:
             return input.forward_connections
         
-        return ConvBlock.get_join_block(input.forward_connections)
+        return ConvBlock._get_join_block(input.forward_connections)
             
   
     def join_block(self, block: Block, key:str = None):

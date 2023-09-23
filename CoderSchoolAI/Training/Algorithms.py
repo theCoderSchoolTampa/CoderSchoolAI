@@ -4,7 +4,8 @@ import pickle
 import numpy as np
 import torch.nn.functional as F
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
-from CoderSchoolAI.Util.data_utils import dict_to_tensor
+from CoderSchoolAI.Util.data_utils import get_minibatches, dict_list_to_batch, dict_to_tensor
+from CoderSchoolAI.Neural.ActorCritic.ActorCriticNetwork import ActorCritic
 from CoderSchoolAI.Environment.Agent import Agent, ReplayBuffer, BasicReplayBuffer, DictReplayBuffer
 from CoderSchoolAI.Environment.Shell import Shell
 from CoderSchoolAI.Neural.Net import Net
@@ -153,6 +154,173 @@ def deep_q_learning(
             # Update the target network every `update_target_every` episodes
             if episode % update_target_every == 0:
                 target_q_network = q_network.copy()
+
+def PPO(
+    agent: Agent,
+    environment: Union[Shell, List[Shell]],
+    actor_critic_net: ActorCritic,
+    buffer: Union[BasicReplayBuffer, DictReplayBuffer],
+    num_episodes: int = 1000,
+    max_steps_per_episode: int = 100,
+    gamma: float = 0.99,
+    batch_size: int = 32,
+    clip_epsilon: float = 0.2,
+    alpha: float = 0.001,
+    epsilon: float = 0.0001,
+    entropy_coef: float = 0.001,
+    critic_coef:float = 0.009,
+    attributes: Union[str, Tuple[str]] = None,
+    optimizer: Optional[th.optim.Optimizer] = None,
+    optimizer_kwargs: Optional[Dict[str, Any]] = None,
+    ppo_epochs: int = 4,
+    minibatch_size:int = 16,
+    fps: int = 120
+) -> None:
+    """
+    Proximal Policy Optimization (PPO): Reinforcement Learning with Trust Region Optimization
+    
+    For more details, you may refer to the following resources:
+
+    1. Original Paper: https://arxiv.org/pdf/1707.06347.pdf
+    2. OpenAI Spinning Up: https://spinningup.openai.com/en/latest/algorithms/ppo.html
+    3. PyTorch Implementations: https://github.com/nikhilbarhate99/PPO-PyTorch/blob/master/PPO.py 
+    
+    --- Note : This implementation is based on nikhilbarhate99's implementation
+    
+    Parameters:
+    - agent: Agent, Actor in the Environment
+    - environment: Union[Shell, List[Shell]], Environment for training
+    - actor_critic_net: ActorCritic, the actor-critic network to be trained
+    - buffer: Union[BasicReplayBuffer, DictReplayBuffer], replay buffer to store transitions
+    - num_episodes: int, number of episodes to train the agent on
+    - max_steps_per_episode: int, maximum steps per episode
+    - gamma: float, discount factor for future rewards
+    - batch_size: int, mini-batch size for each update
+    - clip_epsilon: float, epsilon value for PPO clipping
+    - alpha: float, learning rate for optimizer
+    - attributes: Union[str, Tuple[str]], attributes to be used for the Network
+    - optimizer: Optional, optimizer for learning the policy
+    - optimizer_kwargs: Optional[Dict[str, Any]], additional keyword arguments for the optimizer
+    - ppo_epochs: int, number of epochs to update the policy network
+    - fps: int, frames per second for environment execution
+    """
+    actor_critic_net.train()
+    episode = 1
+    assert float(batch_size // minibatch_size) == batch_size /minibatch_size, "Minibatch size must be a multiple of Batch size"
+    optimizer = th.optim.Adam(actor_critic_net.parameters(), lr=alpha) if optimizer is None else optimizer
+    if isinstance(agent.get_actions(), dict):
+        pass
+
+    def collect_rollouts():  #TODO: Finish Vec Env Support
+        # Convert to Batch
+        state = environment.reset(attributes) if not isinstance(environment, list) else dict_list_to_batch([env.reset(attributes) for env in environment])
+        
+        done = False if not isinstance(environment, list) else [False for _ in range(len(environment))]
+        step = 0
+        while not buffer.size() > batch_size:
+            environment.clock.tick(fps)
+            if done:
+                state = environment.reset(attributes) if not isinstance(environment, list) else dict_list_to_batch([env.reset(attributes) for env in environment])
+                done = False
+                step = 0
+                episode+=1
+
+            # Convert state to tensor for feeding into the network
+            if isinstance(buffer, BasicReplayBuffer):
+                state_tensor = th.tensor(state, dtype=th.float32).to(actor_critic_net.device)
+                state_tensor = th.unsqueeze(state_tensor, 0)
+            else:
+                state_tensor = dict_to_tensor(state, actor_critic_net.device)
+
+            # Feed the state into the Actor Critic Network
+            probs, actions, vals = actor_critic_net.get_sample_and_values(state_tensor)
+
+            #TODO: This is a temporary Solution to the batched action sampling NEEDS FIX
+            a_s = actions
+            if len(actions.shape) > 1: a_s = a_s.squeeze(0)
+                
+            # Take action in the environment
+            next_state, reward, done = environment.step(a_s.cpu().numpy(), 0, attributes)
+            
+            # Convert to Batch
+            next_state = next_state if not isinstance(environment, list) else dict_list_to_batch(next_state)
+
+            # Store transition in the replay buffer state, action, probs, vals, reward, done
+            buffer.store_memory(state, actions, probs, vals, reward, done, next_state)
+            # Update the state
+            state = next_state
+            step += 1
+            environment.render_env()
+            
+    def compute_advantages(rewards, vals, dones):
+        """
+        Computes the advantage for the Critic
+        """
+        advantages = th.zeros_like(rewards)
+        last_advantage = 0  # Assume the value function is zero for the terminal state
+        for t in reversed(range(len(rewards))),:
+            delta = rewards[t] + gamma * vals[t + 1] * (1 - dones[t]) - vals[t]
+            last_advantage = delta + gamma * last_advantage * (1 - dones[t])
+            advantages[t] = last_advantage
+        return advantages   
+    
+    def compute_returns(rewards, dones):
+        returns = th.zeros_like(rewards)
+        last_return = 0
+        for t in reversed(range(len(rewards))):
+            last_return = rewards[t] + gamma * last_return * (1 - dones[t])
+            returns[t] = last_return
+        return returns
+            
+        
+    while episode < num_episodes+1:
+        # Collect samples, then perform an update on the Q-network
+        collect_rollouts()
+        # Sample a batch from the replay buffer
+        states, actions, log_probs, vals, rewards, dones, next_states, batches = buffer.generate_batches()
+        buffer.clear_memory()
+        # Convert to tensors
+        if isinstance(buffer, BasicReplayBuffer):
+            states = th.tensor(states, dtype=th.float32)
+            next_states = th.tensor(next_states, dtype=th.float32)
+        
+        else:
+            states = dict_to_tensor(states, device=actor_critic_net.device)
+            next_states = dict_to_tensor(next_states)
+                
+        advantages = compute_advantages(rewards, vals, dones) # Compute Temporal Difference
+        returns = compute_returns(rewards, dones)
+        
+        for _ in range(ppo_epochs):
+            
+            for mini_states, mini_actions, mini_log_probs, mini_vals, mini_advantages in get_minibatches(states, actions, log_probs, vals, advantages, batches):
+                # Mini-batch trhough the network
+                new_log_probs, _, new_vals = actor_critic_net.get_sample_and_values(mini_states)
+                # Critic Loss <- 
+                critic_loss = F.mse_loss(new_vals, mini_vals)
+                # Computer Ratio of new/old probs
+                ratio = (th.exp(new_log_probs)), th.exp(mini_log_probs)
+                
+                # Actor (Policy) Loss
+                surr_1 = ratio * mini_advantages
+                surr_2 = th.clamp(ratio, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * mini_advantages
+                actor_loss = -th.min(surr_1, surr_2).mean()
+                
+                # (Total Loss)
+                loss = critic_coef * critic_loss + actor_loss - entropy_coef * th.mean(-th.exp(new_log_probs) * new_log_probs)
+                
+                # (Update)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                
+                
+    
+            
+            
+            
+
 
 class FloatDict(defaultdict):
     def __init__(self, *args):

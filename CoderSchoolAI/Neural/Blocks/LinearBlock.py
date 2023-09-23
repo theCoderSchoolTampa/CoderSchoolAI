@@ -44,7 +44,7 @@ class LinearBlock(Block):
             
         self.regenerate_network()
 
-    def get_join_block(self:Block,):
+    def _get_join_block(self:Block,):
         """
         Will retrieve the shallowest JoinBlock in the network.
         """
@@ -53,7 +53,7 @@ class LinearBlock(Block):
         if self.forward_connections.d_type == Block.Type.JOIN:
             return self.forward_connections
         
-        return self.get_join_block(self.forward_connections)
+        return self._get_join_block(self.forward_connections)
             
   
     def join_block(self, block: Block, key:str = None):
