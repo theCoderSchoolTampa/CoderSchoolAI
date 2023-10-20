@@ -7,9 +7,8 @@ from CoderSchoolAI.Environment.Attributes import *
 import numpy as np
 from enum import Enum
 
-from CoderSchoolAI.Neural.Block import Block
+from CoderSchoolAI.Neural.Net import Net
 from CoderSchoolAI.Util.neural_utils import generate_sequential, sample_distrobution
-from CoderSchoolAI.Util.data_utils import dict_to_tensor
 
 
 class ActorCritic(nn.Module):
@@ -43,9 +42,9 @@ class ActorCritic(nn.Module):
             return val
         
     def __init__(self, 
-                 observation_space: Union[ObsAttribute, Dict[str, ObsAttribute]], 
+                 observation_space: Tuple[str], 
                  action_space: Union[ActionAttribute, Dict[str, ActionAttribute]], 
-                 features_extractor_class:nn.Module,
+                 features_extractor:nn.Module,
                  net_arch:list = [256, 128, dict(vf=[64, 64], pi=[64, 64])], 
                  features_extractor_file: Optional[str] = None, 
                  train_features_extractor:bool =True,
@@ -65,9 +64,9 @@ class ActorCritic(nn.Module):
     action_space : Union[ActionAttribute, Dict[str, ActionAttribute]]
         The observation space describing the environment's states. It can be a single observation attribute or a dictionary of multiple observation attributes.
         
-    features_extractor_class : nn.Module
-        A PyTorch neural network module for feature extraction from observations.
-        Will be provided Observation Space
+    features_extractor : nn.Module
+        A PyTorch neural network for feature extraction from observations.
+        Will be provided Observation Space if needs build. Can be a class reference or an instance of the network.
         
     net_arch : list
         The architecture of the neural network as a list. It may contain integers and dictionaries to specify the architecture for shared layers, actor-specific layers, and critic-specific layers.
@@ -94,8 +93,8 @@ class ActorCritic(nn.Module):
               
         self.observation_space = observation_space
         self.action_space = action_space
-        self.__features_class = features_extractor_class
-        self.features_network = self.__features_class(self.observation_space)
+        self.__features_extractor_class = type(features_extractor) if isinstance(features_extractor, nn.Module) else features_extractor
+        if not isinstance(features_extractor, nn.Module): self.features_network = self.__features_extractor_class(self.observation_space)
         assert isinstance(self.features_network, nn.Module), "Cannot use non-torch Modules for the Features Network."
         if features_extractor_file is not None:
             self.features_network.load_state_dict(th.load(features_extractor_file))
@@ -103,6 +102,7 @@ class ActorCritic(nn.Module):
         self.__shared_arch, self.__actor_arch, self.__critic_arch = ActorCritic.__get_net_arch(net_arch)
         self.device = th.device('cuda') if device == 'cuda' and th.cuda.is_available() else th.device('cpu')
         # Output from previous into the current
+        self._features_dim = self.features_network.output_size if isinstance(self.features_network, Net) else self.features_network._features_dim
         self.__shared_arch = [self.features_network._features_dim] + self.__shared_arch
         self.__actor_arch, self.__critic_arch = [self.__shared_arch[-1]] + self.__actor_arch, [self.__shared_arch[-1]] + self.__critic_arch
         
@@ -114,7 +114,7 @@ class ActorCritic(nn.Module):
         self.critic = ActorCritic.Critic(self.__critic_arch, critic_activation_fnc, self.device)
     
     def forward(self, x):
-        with th.set_grad_enabled(not self.__detatch_features): 
+        with th.set_grad_enabled(not self.__detatch_features):
             features = self.features_network(x) # Whether or not to use Gradients on Features Network
         features = self.__output_activation(self.shared_net(features))
         actor_output, critic_output = self.actor(features), self.critic(features)
@@ -142,8 +142,11 @@ class ActorCritic(nn.Module):
     
     def get_sample_and_values(self, obs):
         """
-        # Probabilities: [Discrete/MultiDiscrete] (batch_size, len(action_outputs), action_outputs[i] for i in action_outputs)  
-        # Sampled Actions: (batch_size, len(action_outputs))
+        Gets Sample Action and Values associated with observations
+        - Param Obs: Actor/Critic Network input tensor
+        - Output[Probabilities]: [Discrete/MultiDiscrete] (batch_size, len(action_outputs), action_outputs[i] for i in action_outputs)  
+        - Output[Sampled Actions]: (batch_size, len(action_outputs))
+        - Output[Critic Network (Val Estimation)]: (batch_size, 1)
         """
         actor_output, critic_output = self(obs)
         _action_idx = 0

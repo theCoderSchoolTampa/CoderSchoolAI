@@ -9,7 +9,6 @@ from gym.spaces import Dict as DictType
 from gym.spaces import Discrete as DiscreteType
 from gym.spaces import MultiDiscrete as MultiDiscreteType
 from gym.spaces import MultiBinary as MultiBinaryType
-
 SpaceType = Union[BoxType, DiscreteType, MultiDiscreteType, MultiBinaryType]
 
 class Attribute:
@@ -25,6 +24,7 @@ class Attribute:
         self.space = space 
         self.update_func = update_func
         self.data = self.sample()
+        self.shape = self._get_shape()
 
     def _get_shape(self):
         """

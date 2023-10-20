@@ -7,11 +7,16 @@ implementation of theoretical concepts.
 
 Key Features:
  - Learning Curriculum: Our module makes learning programming engaging and fun, turning complex ideas into digestible chunks.
+ 
  - Educational Tools and Templates: We provide tools and templates to simplify complex concepts and enhance learning opportunities.
+ 
  - Exploration of Foundational Concepts: Our module enables the exploration of foundational principles of problem-solving through Artificial Intelligence.
  - Structural Guidance: We offer structured guidance for exploring and implementing theoretical concepts in a hands-on way.
+ 
  - Simplified Machine Learning Principles: Our module breaks down complex machine learning  principles to facilitate understanding and utilization of these fundamental mechanisms.
+ 
  - Neural Networks to Neural Blocks: Our module implements a simpler concept called neural blocks. A Neural Block is an auto-generated neural network Sequential that can be trained to learn from data. 
+ 
  - Training Agents/Bots: Users can train agents or bots to play games, leveraging principles of data engineering and neural networks.
  
 Algorithms Available:
@@ -23,7 +28,7 @@ Future Enhancements:
  - Adding {Join/Split/Add} support for Creating Network Chains.
  - Adding Support for Neural Block Graph Architectures.
  - Support for multiple agents/bots in a single game.
- - PPO, DDPG, SAC, TD3, PPO2, DDPG2, SAC2
+ - PPO, DDPG, SAC, TD3, PPO2, DDPG2, SAC2, TRPO
 
 Known Issues: 
 
@@ -50,5 +55,5 @@ Contribution Guidelines:
 
 """
 
-__version__ = '0.0.5-Alpha'
+__version__ = '0.0.9'
 print(f"CoderSchoolAI v{__version__}: {__desc__}")

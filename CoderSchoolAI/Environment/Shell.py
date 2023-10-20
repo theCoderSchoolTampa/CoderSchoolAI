@@ -58,6 +58,12 @@ class Shell:
         - an instance of the Attribute class for the specified attribute
         """
         return self[name]
+
+    def get_observation_space(self,):
+        return self.ObsAttributes
+    
+    def get_action_space(self,):
+        return self.ActionAttributes
     
     def get_observation(self, attributes=None) -> Dict[str, np.ndarray]:
         """

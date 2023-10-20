@@ -20,6 +20,7 @@ class Block (nn.Module):
             CONV=2
             JOIN=3
             OUTPUT=4
+            FLATTEN = 5
     
     def __init__(self, b_type, device: th.device = th.device('cpu'), activation_function: Callable = nn.ReLU,):
         super(Block, self).__init__()

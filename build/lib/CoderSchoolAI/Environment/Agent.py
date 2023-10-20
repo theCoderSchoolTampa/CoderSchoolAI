@@ -58,8 +58,8 @@ class BasicReplayBuffer(ReplayBuffer):
         batches = [indicies[i:i+self.batch_size] for i in batch_start]
         return np.array(self.states),\
                 np.array(self.actions),\
-                np.array(self.probs),\
-                np.array(self.vals),\
+                self.probs,\
+                self.vals,\
                 np.array(self.rewards),\
                 np.array(self.dones),\
                 np.array(self.next_states),\
@@ -100,12 +100,12 @@ class DictReplayBuffer(ReplayBuffer):
         a =  np.array(self.actions) if not isinstance(self.actions, dict) else {key: np.array(value) for key, value in self.actions.items()}
         ns = np.array(self.next_states) if not isinstance(self.next_states, dict) else {key: np.array(value) for key, value in self.next_states.items()}
         return s, a, \
-                np.array(self.probs),\
-                np.array(self.vals),\
+                self.probs,\
+                self.vals,\
                 np.array(self.rewards),\
                 np.array(self.dones),\
                 ns,\
-                batches
+                batches # Indecies
 
     def store_memory(self, state, action, probs, vals, reward, done, next_state) -> None:
         if self.dict_keys is not None:

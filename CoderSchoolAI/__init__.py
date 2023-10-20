@@ -55,5 +55,5 @@ Contribution Guidelines:
 
 """
 
-__version__ = '0.0.5-Alpha'
+__version__ = '0.0.9'
 print(f"CoderSchoolAI v{__version__}: {__desc__}")

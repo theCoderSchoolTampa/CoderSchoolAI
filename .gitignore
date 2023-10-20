@@ -8,3 +8,6 @@ MANIFEST.in
 # Data Files
 *.pt
 *.pkl
+
+# compiled/extra un-necessary python files
+*.pyc

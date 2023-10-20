@@ -26,10 +26,12 @@ def deep_q_learning(
     epsilon_decay=0.997, # Decay rate for epsilon
     stop_epsilon=0.01, # Stop probability for random action selection
     alpha=0.01, # Learning rate
+    reward_norm_coef:float = 1.0,
     attributes: Union[str, Tuple[str]] = None, # attributes to be used for the Network
     optimizer= None, # Optimizer to use for the Agent
     optimizer_kwargs: Optional[Dict[str, Any]] = None, # Additional keyword arguments
     fps: int = 120, # Frames per second to run the Agent
+    log_frequency: int = 10, # Num Episodes Between logs
     ) -> None:
     """
     Deep Q Learning: Reinforcement Learning with Deep Q-Network
@@ -66,20 +68,31 @@ def deep_q_learning(
     q_network.train()
     episode = 1
     optimizer = th.optim.Adam(q_network.parameters(), lr=alpha) if optimizer is None else optimizer
+    cumulative_reward = 0
+    num_episodes_for_logging = 0
+    
     if isinstance(agent.get_actions(), dict):
         raise ValueError("The action space for Deep Q Learning cannot be of type Dict.")
 
     def collect_rollouts():
+        nonlocal epsilon, stop_epsilon, episode, cumulative_reward, num_episodes_for_logging
         state = environment.reset(attributes)
         done = False
         step = 0
         while not buffer.size() > batch_size:
             environment.clock.tick(fps)
             if done:
-                state = environment.reset()
+                state = environment.reset(attributes)
                 done = False
                 step = 0
                 episode+=1
+                num_episodes_for_logging += 1 
+                if num_episodes_for_logging % log_frequency == 0:
+                    avg_reward = cumulative_reward / log_frequency
+                    print(f"Episode: {episode}, Avg Reward: {avg_reward}, Epsilon: {epsilon}")
+                    # Reset cumulative_reward and num_episodes_for_logging
+                    cumulative_reward = 0
+                    num_episodes_for_logging = 0
 
             # Get list of possible actions from agent
             possible_actions = agent.get_actions()
@@ -106,7 +119,10 @@ def deep_q_learning(
 
             # Take action in the environment
             next_state, reward, done = environment.step(action, 0, attributes)
-
+            
+            reward *= reward_norm_coef
+            # Training Logging
+            cumulative_reward += reward
             # Store transition in the replay buffer state, action, probs, vals, reward, done
             buffer.store_memory(state, action, 0, 0, reward, done, next_state)
             # Update the state
@@ -145,7 +161,7 @@ def deep_q_learning(
             target_q_values = th.unsqueeze(target_q_values, 1)
             # Compute loss
             loss = F.mse_loss(current_q_values_for_actions, target_q_values.detach())                
-            
+            if episode % log_frequency == 0: print('Loss:', loss.item())
             # Update
             optimizer.zero_grad()
             loss.backward()
@@ -168,13 +184,13 @@ def PPO(
     alpha: float = 0.001,
     epsilon: float = 0.0001,
     entropy_coef: float = 0.001,
-    critic_coef:float = 0.009,
-    attributes: Union[str, Tuple[str]] = None,
+    critic_coef:float = 0.8,
+    attributes: Union[str, Tuple[str]] = None,# attributes to be used for the Network
     optimizer: Optional[th.optim.Optimizer] = None,
     optimizer_kwargs: Optional[Dict[str, Any]] = None,
     ppo_epochs: int = 4,
     minibatch_size:int = 16,
-    fps: int = 120
+    fps: int = 120,
 ) -> None:
     """
     Proximal Policy Optimization (PPO): Reinforcement Learning with Trust Region Optimization
@@ -277,27 +293,31 @@ def PPO(
         # Collect samples, then perform an update on the Q-network
         collect_rollouts()
         # Sample a batch from the replay buffer
-        states, actions, log_probs, vals, rewards, dones, next_states, batches = buffer.generate_batches()
+        states, actions, log_probs, vals, rewards, dones, next_states, _ = buffer.generate_batches()
         buffer.clear_memory()
         # Convert to tensors
-        if isinstance(buffer, BasicReplayBuffer):
-            states = th.tensor(states, dtype=th.float32)
-            next_states = th.tensor(next_states, dtype=th.float32)
+        if not isinstance(states, dict):
+            states = th.tensor(states, dtype=th.float32, device=actor_critic_net.device)
+            next_states = th.tensor(next_states, dtype=th.float32, device=actor_critic_net.device)
         
         else:
             states = dict_to_tensor(states, device=actor_critic_net.device)
-            next_states = dict_to_tensor(next_states)
+            next_states = dict_to_tensor(next_states, device=actor_critic_net.device)
+        
+        actions = th.Tensor(actions, dtype=th.float32, device=actor_critic_net.device) if not isinstance(actions, dict) else dict_to_tensor(actions, device=actor_critic_net.device)
+        
+        log_probs = th.tensor(log_probs, dtype=th.float32, device=actor_critic_net.device)
                 
-        advantages = compute_advantages(rewards, vals, dones) # Compute Temporal Difference
-        returns = compute_returns(rewards, dones)
+        advantages = compute_advantages(rewards, vals, dones).to(actor_critic_net.device) # Compute Temporal Difference
+        returns = compute_returns(rewards, dones).to(actor_critic_net.device)
         
         for _ in range(ppo_epochs):
             
-            for mini_states, mini_actions, mini_log_probs, mini_vals, mini_advantages in get_minibatches(states, actions, log_probs, vals, advantages, batches):
+            for mini_states, mini_log_probs, mini_returns, mini_advantages in get_minibatches(states, actions, log_probs, returns, advantages, batch_size // minibatch_size, minibatch_size, device=actor_critic_net.device):
                 # Mini-batch trhough the network
                 new_log_probs, _, new_vals = actor_critic_net.get_sample_and_values(mini_states)
                 # Critic Loss <- 
-                critic_loss = F.mse_loss(new_vals, mini_vals)
+                critic_loss = F.mse_loss(new_vals, mini_returns)
                 # Computer Ratio of new/old probs
                 ratio = (th.exp(new_log_probs)), th.exp(mini_log_probs)
                 

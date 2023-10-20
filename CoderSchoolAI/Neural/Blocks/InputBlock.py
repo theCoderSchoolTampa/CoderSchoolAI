@@ -23,7 +23,7 @@ class InputBlock(Block):
         self._is_convolutional = False
         self._needs_flatten = False
         self._is_mod_dict = is_module_dict
-        if isinstance(in_attribute, dict):
+        if isinstance(in_attribute, dict): # Multi-Attribute Networks
             temp_dict_module = {}
             flatten_size = 0
             for key, attr in in_attribute.items():
@@ -39,7 +39,7 @@ class InputBlock(Block):
                 self.dict_modules = temp_dict_module
             self.flatten_size = flatten_size
         
-        elif isinstance(in_attribute, Attribute):
+        elif isinstance(in_attribute, Attribute): # Single Attribute Networks
             self.module = None
             if len(in_attribute.space.shape) == 1:
                 # This is a Linear Attribute
@@ -73,6 +73,8 @@ class InputBlock(Block):
             if self.device != block.device:
                 block.device = self.device
                 block.regenerate_network()
+        elif block.b_type == Block.Type.FLATTEN:
+            assert not self._is_mod_dict, "InputBlock of Module Dict distinction cannot be joined with a FlattenBlock."
         else:
             raise ValueError("InputBlock.join_block() expects a Block object")
     

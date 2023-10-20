@@ -94,7 +94,7 @@ class LinearBlock(Block):
         This function is used to correct/build a network from the internal state/structure of the block.
         """
         if self._use_custom_hidden:
-            layer_size = np.concatenate(self.hidden_size, [self.output_size])
+            layer_size = np.concatenate([self.hidden_size, [self.output_size]])
         else:
             layer_size = np.concatenate([np.full((self.num_hidden_layers,), self.hidden_size), [self.output_size]])
         layers = []

@@ -8,7 +8,7 @@ from enum import Enum
 
 from CoderSchoolAI.Neural.Block import Block
 
-class Net (nn.Module):
+class Net(nn.Module):
     def __init__(self, name = "basic_net", is_dict_network=False, device: th.device = th.device('cpu'), ):
         super(Net, self).__init__()
         self.device = device

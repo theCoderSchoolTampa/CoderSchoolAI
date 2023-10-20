@@ -26,7 +26,7 @@ def sample_distrobution(logits, dist_type:SpaceType, action_space=None, eps= 1e-
         std = th.exp(log_std) + eps # Numerical Stability
         dist = th.distributions.Normal(mean, std)
         action_sample = dist.sample()
-        log_prob = dist.log_prob(action_sample).sum(dim=(-1, -2)) # sum over the last n-dimensions
+        log_prob = dist.log_prob(action_sample).sum(dim=(-1, -2)) if len(logits.shape) > 2 else dist.log_prob(action_sample).sum(dim=(-1,))# sum over the last n-dimensions
     else:
         raise Exception(f"Unsupported Distrobution Type: {type(dist_type)}") 
     return log_prob, action_sample

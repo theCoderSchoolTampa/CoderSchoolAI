@@ -374,17 +374,17 @@ class SnakeEnv(Shell):
             if self.verbose:
                 print('Snake Has Intersected with a non-collidable area.')
             self._soft_reset = False
-            return -1, True
+            return -2.5, True
         if apple_consumed:
             if self.verbose:
                 print('Snake Has Consumed an Apple.')
             self._soft_reset = True
-            return 1, True
+            return 3.0 + 0.1 * length_of_snake, True
         """
         Here we assign rewards for different viewable attributes of the environment.
         """
-        distance_penalty = -distance_to_apple / euclidean_distance((self.width, self.height), (0, 0))
-        length_of_snake_reward = length_of_snake / self.max_length_of_snake
+        distance_penalty = 0 # -distance_to_apple / euclidean_distance((self.width, self.height), (0, 0))
+        length_of_snake_reward = 0 # length_of_snake / self.max_length_of_snake
         return (distance_penalty + length_of_snake_reward + feedback), False
         
     def update_env(self):
@@ -422,8 +422,6 @@ class SnakeEnv(Shell):
             pygame.draw.rect(self.screen, self.HEAD_COLOR, rect)
 
             # Draw the apple
-            # rect = pygame.Rect(self.apple_position[0] * self.cell_size, self.apple_position[1] * self.cell_size, self.cell_size, self.cell_size)
-            # pygame.draw.rect(self.screen, self.APPLE_COLOR, rect)
             apple_rect = self.apple_asset.get_rect()
             apple_rect.topleft = (self.apple_position[0]*self.cell_size, self.apple_position[1]*self.cell_size)
             self.screen.blit(self.apple_asset, apple_rect)

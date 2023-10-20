@@ -105,7 +105,7 @@ class DictReplayBuffer(ReplayBuffer):
                 np.array(self.rewards),\
                 np.array(self.dones),\
                 ns,\
-                batches
+                batches # Indecies
 
     def store_memory(self, state, action, probs, vals, reward, done, next_state) -> None:
         if self.dict_keys is not None:
