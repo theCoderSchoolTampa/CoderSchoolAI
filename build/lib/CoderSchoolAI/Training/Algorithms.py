@@ -100,10 +100,11 @@ def deep_q_learning(
             # Convert state to tensor for feeding into the network
             if isinstance(buffer, BasicReplayBuffer):
                 state_tensor = th.tensor(state, dtype=th.float32)
+                state_tensor = th.unsqueeze(state_tensor, 0)
             else:
                 state_tensor = dict_to_tensor(state, q_network.device)
-
-            state_tensor = th.unsqueeze(state_tensor, 0)
+                state_tensor = {k:v.unsqueeze(0) for k, v in state_tensor.items()}
+            
 
             # Feed the state into the q_network to get Q-values for each action
             q_values = q_network(state_tensor)
@@ -138,10 +139,11 @@ def deep_q_learning(
             states, actions, _, _, rewards, dones, next_states, batches = buffer.generate_batches()
             buffer.clear_memory()
             # Convert to tensors
-            if isinstance(buffer, BasicReplayBuffer):
+            if not isinstance(states, dict):
                 states = th.tensor(states, dtype=th.float32)
                 next_states = th.tensor(next_states, dtype=th.float32)
             else:
+                assert isinstance(buffer, DictReplayBuffer)
                 states = dict_to_tensor(states)
                 next_states = dict_to_tensor(next_states)
                 
@@ -229,6 +231,7 @@ def PPO(
 
     def collect_rollouts():  #TODO: Finish Vec Env Support
         # Convert to Batch
+        nonlocal episode
         state = environment.reset(attributes) if not isinstance(environment, list) else dict_list_to_batch([env.reset(attributes) for env in environment])
         
         done = False if not isinstance(environment, list) else [False for _ in range(len(environment))]
@@ -242,11 +245,13 @@ def PPO(
                 episode+=1
 
             # Convert state to tensor for feeding into the network
-            if isinstance(buffer, BasicReplayBuffer):
+            if not isinstance(state, dict):
                 state_tensor = th.tensor(state, dtype=th.float32).to(actor_critic_net.device)
                 state_tensor = th.unsqueeze(state_tensor, 0)
             else:
+                assert isinstance(buffer, DictReplayBuffer)
                 state_tensor = dict_to_tensor(state, actor_critic_net.device)
+                state_tensor = {k:v.unsqueeze(0) for k, v in state_tensor.items()}
 
             # Feed the state into the Actor Critic Network
             probs, actions, vals = actor_critic_net.get_sample_and_values(state_tensor)
@@ -272,18 +277,18 @@ def PPO(
         """
         Computes the advantage for the Critic
         """
-        advantages = th.zeros_like(rewards)
+        advantages = th.zeros_like(th.from_numpy(rewards), dtype=th.float)
         last_advantage = 0  # Assume the value function is zero for the terminal state
-        for t in reversed(range(len(rewards))),:
+        for t in range(len(rewards)-1, -1, -1),:
             delta = rewards[t] + gamma * vals[t + 1] * (1 - dones[t]) - vals[t]
             last_advantage = delta + gamma * last_advantage * (1 - dones[t])
             advantages[t] = last_advantage
         return advantages   
     
     def compute_returns(rewards, dones):
-        returns = th.zeros_like(rewards)
+        returns = th.zeros_like(th.from_numpy(rewards),  dtype=th.float)
         last_return = 0
-        for t in reversed(range(len(rewards))):
+        for t in range(len(rewards)-1, -1, -1):
             last_return = rewards[t] + gamma * last_return * (1 - dones[t])
             returns[t] = last_return
         return returns
@@ -297,16 +302,16 @@ def PPO(
         buffer.clear_memory()
         # Convert to tensors
         if not isinstance(states, dict):
-            states = th.tensor(states, dtype=th.float32, device=actor_critic_net.device)
-            next_states = th.tensor(next_states, dtype=th.float32, device=actor_critic_net.device)
+            states = th.tensor(states, dtype=th.float32,).to(device=actor_critic_net.device)
+            next_states = th.tensor(next_states, dtype=th.float32, ).to(device=actor_critic_net.device)
         
         else:
             states = dict_to_tensor(states, device=actor_critic_net.device)
             next_states = dict_to_tensor(next_states, device=actor_critic_net.device)
         
-        actions = th.Tensor(actions, dtype=th.float32, device=actor_critic_net.device) if not isinstance(actions, dict) else dict_to_tensor(actions, device=actor_critic_net.device)
+        actions = th.cat(actions, dim=1).float().to(device=actor_critic_net.device) if not isinstance(actions, dict) else dict_to_tensor(actions, device=actor_critic_net.device)
         
-        log_probs = th.tensor(log_probs, dtype=th.float32, device=actor_critic_net.device)
+        log_probs = th.tensor(log_probs, dtype=th.float32, ).to(device=actor_critic_net.device)
                 
         advantages = compute_advantages(rewards, vals, dones).to(actor_critic_net.device) # Compute Temporal Difference
         returns = compute_returns(rewards, dones).to(actor_critic_net.device)
@@ -399,4 +404,3 @@ class QLearning:
             return
         with open(file_name, 'rb') as f:
             self.q_table = pickle.load(f)
-

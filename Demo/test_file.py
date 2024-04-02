@@ -8,7 +8,7 @@
 #         snake_env.update_env() # Update the environment in what we call a loop.
 #         s+=1
 #     snake_env.snake_agent.qlearning.save_q_table(save_file)
-    
+
 # def load(snake_env, steps=10000, save_file="./QSnakeAgent.pkl"):
 #     s = 0
 #     snake_env.snake_agent.qlearning.load_q_table(save_file)
@@ -18,16 +18,16 @@
 #         s+=1
 
 # snake_env = SnakeEnv(
-#     target_fps=6, 
+#     target_fps=6,
 #     height=8,
 #     width=8,
 #     cell_size=80,
-#     is_user_control=False, 
+#     is_user_control=False,
 #     snake_is_q_table=False,
 #     snake_is_search_enabled=True,
 #     verbose=True,
 #     policy_kwargs=dict( # Parameters for the Q-Learning!
-#         alpha=0.9,  
+#         alpha=0.9,
 #         gamma=0.85,
 #         epsilon=1,
 #         epsilon_decay=0.999,
@@ -39,7 +39,6 @@
 # learn(snake_env, steps=1000000, save_file="./QSnakeAgent.pkl")
 # while True: # Loop until the game is over.
 #     snake_env.update_env() # Update the environment in what we call a loop.
-
 
 
 ### Testing Neural Network ###
@@ -118,7 +117,10 @@ import torch as th
 
 # snake_env = SnakeEnv(width=8, height=8)
 frozen_lake_env = FrozenLakeEnv()
-input_block = InputBlock(in_attribute=frozen_lake_env.get_attribute("game_state"), is_module_dict=False,)
+input_block = InputBlock(
+    in_attribute=frozen_lake_env.get_attribute("game_state"),
+    is_module_dict=False,
+)
 # conv_block = ConvBlock(input_shape=input_block.in_attribute.space.shape,num_channels=1,depth=5,)
 flatten_size = np.prod(frozen_lake_env.get_attribute("game_state").shape)
 flat_block = FlattenBlock(flatten_size)
@@ -135,12 +137,18 @@ flat_block = FlattenBlock(flatten_size)
 
 # copy_net = q_net.copy()
 
-feat_net = Net(name='test_ppo_net_with_game_state')
+feat_net = Net(name="test_ppo_net_with_game_state")
 feat_net.add_block(input_block)
 feat_net.add_block(flat_block)
 feat_net.compile()
-
-act_critic = ActorCritic(frozen_lake_env.get_observation_space(), frozen_lake_env.get_action_space(), feat_net, net_arch=[32, 16, dict(vf=[16], pi=[16])])
+feat_net.output_size = flatten_size
+feat_net._features_dim = flatten_size
+act_critic = ActorCritic(
+    frozen_lake_env.get_observation_space(),
+    frozen_lake_env.get_action_space()["actions"],
+    feat_net,
+    net_arch=[32, 16, dict(vf=[16], pi=[16])],
+)
 
 from CoderSchoolAI.Training.Algorithms import deep_q_learning, PPO
 from CoderSchoolAI.Environment.Agent import BasicReplayBuffer, DictReplayBuffer
@@ -167,7 +175,9 @@ PPO(
     agent=frozen_lake_env.agent,
     environment=frozen_lake_env,
     actor_critic_net=act_critic,
-    buffer= DictReplayBuffer(batch_size, frozen_lake_env.get_observation_space.keys(),),
+    buffer=DictReplayBuffer(
+        batch_size,
+    ),  # frozen_lake_env.get_observation_space().keys()
     num_episodes=10000,
     max_steps_per_episode=16,
     epsilon=0.005,

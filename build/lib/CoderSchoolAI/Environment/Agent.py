@@ -96,8 +96,10 @@ class DictReplayBuffer(ReplayBuffer):
         indicies = np.arange(n_states, dtype=np.int64)
         np.random.shuffle(indicies)
         batches = [indicies[i:i+self.batch_size] for i in batch_start]
-        s = np.array(self.states) if not isinstance(self.states, dict) else {key: np.array(value) for key, value in self.states.items()}
-        a =  np.array(self.actions) if not isinstance(self.actions, dict) else {key: np.array(value) for key, value in self.actions.items()}
+        # s = np.array(self.states) if not isinstance(self.states, dict) else {key: np.array(value) for key, value in self.states.items()}
+        # a =  np.array(self.actions) if not isinstance(self.actions, dict) else {key: np.array(value) for key, value in self.actions.items()}
+        s = self.states
+        a = self.actions
         ns = np.array(self.next_states) if not isinstance(self.next_states, dict) else {key: np.array(value) for key, value in self.next_states.items()}
         return s, a, \
                 self.probs,\

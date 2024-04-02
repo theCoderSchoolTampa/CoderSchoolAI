@@ -302,6 +302,10 @@ class SnakeEnv(Shell):
         self.register_attribute(ObsAttribute(name="snake_pos",  
                                              space= DiscreteType(n=2), 
                                              update_func=self.__update_snake_head_callback))
+        
+        self.register_attribute(ActionAttribute(name="actions",  
+                                             space= DiscreteType(n=len(SnakeAgent.SnakeAction)), 
+                                            ))
         if self.verbose:
             print('Registered: snake_pos Attribute.')
         # Misc Class Items

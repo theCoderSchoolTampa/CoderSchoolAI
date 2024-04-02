@@ -1,6 +1,7 @@
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 
-def register_function(instance:Any, method_name: str, new_method: Callable):
+
+def register_function(instance: Any, method_name: str, new_method: Callable):
     """
     This function is used to register a new method on an instance.
     instance: The instance on which the method is to be registered on.
