@@ -7,11 +7,11 @@ For more information regarding Spaces, see https://gym.openai.com/docs/spaces/
 """
 import pygame
 import gymnasium as gym
-from gym.spaces import Box as BoxType
-from gym.spaces import Dict as DictType
-from gym.spaces import Discrete as DiscreteType
-from gym.spaces import MultiDiscrete as MultiDiscreteType
-from gym.spaces import MultiBinary as MultiBinaryType
+from gymnasium.spaces import Box as BoxType
+from gymnasium.spaces import Dict as DictType
+from gymnasium.spaces import Discrete as DiscreteType
+from gymnasium.spaces import MultiDiscrete as MultiDiscreteType
+from gymnasium.spaces import MultiBinary as MultiBinaryType
 from CoderSchoolAI.Environment.Attributes import ObsAttribute, ActionAttribute
 
 SpaceType = Union[BoxType, DiscreteType, MultiDiscreteType, MultiBinaryType]
