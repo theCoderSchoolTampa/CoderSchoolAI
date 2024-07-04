@@ -71,3 +71,25 @@ class Block(nn.Module):
         self.device = device
         self.to(device)
         self.regenerate_network()
+
+    def compare_to(self, other):
+        if type(self) != type(other):
+            print(f"Block type mismatch: {type(self)} vs {type(other)}")
+            return
+        
+        for attr in ['input_size', 'output_size', 'num_hidden_layers', 'hidden_size', 'dropout']:
+            if hasattr(self, attr) and hasattr(other, attr):
+                if getattr(self, attr) != getattr(other, attr):
+                    print(f"Attribute {attr} mismatch: {getattr(self, attr)} vs {getattr(other, attr)}")
+        
+        if hasattr(self, 'module') and hasattr(other, 'module'):
+            self_state = self.module.state_dict()
+            other_state = other.module.state_dict()
+            
+            for key in self_state.keys():
+                if not th.allclose(self_state[key], other_state[key], rtol=1e-5, atol=1e-8):
+                    print(f"Module state mismatch in {key}")
+                    print(f"Self: {self_state[key]}")
+                    print(f"Other: {other_state[key]}")
+                    print(f"Absolute diff: {(self_state[key] - other_state[key]).abs().max().item()}")
+                    print(f"Relative diff: {((self_state[key] - other_state[key]).abs() / (self_state[key].abs() + 1e-8)).max().item()}")

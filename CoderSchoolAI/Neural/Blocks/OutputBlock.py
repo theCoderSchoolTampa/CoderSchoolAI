@@ -30,6 +30,7 @@ class OutputBlock(Block):
         self.module = None
 
         self.regenerate_network()
+        self.to(self.device)
 
     def forward(self, x) -> th.Tensor:
         x = x.to(self.device)

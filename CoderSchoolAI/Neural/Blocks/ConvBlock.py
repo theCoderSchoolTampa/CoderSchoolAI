@@ -44,6 +44,7 @@ class ConvBlock(Block):
         self.output_size = None
         self.disable_max_pool = disable_max_pool
         self.regenerate_network()
+        self.to(self.device)
 
     def _get_join_block(
         input: Block,
@@ -102,6 +103,7 @@ class ConvBlock(Block):
             or self.forward_connections.d_type == Block.Type.JOIN
         ):
             return x
+        
         # Another Linear Block or a Output Block
         return self.forward_connections.forward(x)
 

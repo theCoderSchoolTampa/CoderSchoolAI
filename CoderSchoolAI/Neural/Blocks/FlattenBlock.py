@@ -22,6 +22,7 @@ class FlattenBlock(Block):
             b_type=Block.Type.FLATTEN, activation_function=None, device=device
         )
         self.output_size = output_size
+        self.to(self.device)
 
     def join_block(self, block: Block, key: str = None):
         if key is None:

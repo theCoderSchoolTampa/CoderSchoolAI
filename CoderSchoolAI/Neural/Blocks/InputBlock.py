@@ -87,6 +87,8 @@ class InputBlock(Block):
             raise ValueError(
                 "InputBlock.__init__() expects an Attribute object or a dictionary of Attribute objects with shape > 0."
             )
+            
+        self.to(self.device)
 
     def join_block(self, block: Union[Block, List[Block]], key: str = None):
         if isinstance(block, Block):

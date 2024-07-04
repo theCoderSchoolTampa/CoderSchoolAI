@@ -31,6 +31,16 @@ class Shell:
         verbose=False,  # Whether or not to print information to the terminal.
         console_only=False,  # Makes the environment run only as a console application.
     ):
+        """Init Shell
+
+        Args:
+            target_fps: int = 30,  Target/Max Framerate to update the environment at.
+            is_user_control: bool = False,  Sets the environment as a user-controlled environment.
+            resolution: Tuple[int, int] = (84, 84),  Resolution of the environment
+            environment_name: str = "Shell",  Name of the environment
+            verbose=False,  Whether or not to print information to the terminal.
+         console_only=False,  Makes the environment run only as a console application.
+        """
         self.target_fps = target_fps
         self.is_user_control = is_user_control
         self.ObsAttributes = dict()
@@ -136,21 +146,22 @@ class Shell:
         for attr in self.ObsAttributes.values():
             attr.update_func()
 
-    def update_attribute(self, name, new_data):
+    def update_attribute(self, attr_name: str, new_data: Any):
         """
         Updates the specified attribute with new data.
         """
-        if name in self.ObsAttributes:
-            self.ObsAttributes[name].update(new_data)
-        elif name in self.ActionAttributes:
-            self.ActionAttributes[name].update(new_data)
+        if attr_name in self.ObsAttributes:
+            self.ObsAttributes[attr_name].update(new_data)
+        elif attr_name in self.ActionAttributes:
+            self.ActionAttributes[attr_name].update(new_data)
         else:
             raise ValueError(
-                f"The Attribute {name} is not contained in the Environment."
+                f"The Attribute {attr_name} is not contained in the Environment."
             )
 
     def reset(
-        self, attributes=None
+        self, 
+        attributes=None
     ) -> Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray]:
         """
         Resets the environment.

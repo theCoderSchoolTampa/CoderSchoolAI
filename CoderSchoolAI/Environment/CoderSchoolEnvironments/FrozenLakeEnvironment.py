@@ -1,10 +1,6 @@
 import numpy as np
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
-from gym.spaces import Box as BoxType
-from gym.spaces import Dict as DictType
-from gym.spaces import Discrete as DiscreteType
-from gym.spaces import MultiDiscrete as MultiDiscreteType
-from gym.spaces import MultiBinary as MultiBinaryType
+from CoderSchoolAI.Environment.Shell import Shell, BoxType, DictType, DiscreteType, MultiDiscreteType, MultiBinaryType
 from CoderSchoolAI.Environment.Attributes import ObsAttribute, ActionAttribute
 from CoderSchoolAI.Environment.Agent import Agent
 from CoderSchoolAI.Environment.Shell import Shell

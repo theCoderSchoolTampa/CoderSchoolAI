@@ -53,6 +53,10 @@ class Attribute:
             return self.space.sample()
         else:
             return distribution.sample()
+        
+    def copy(self):
+        n_attr = Attribute(self.name, self.space)
+        return n_attr
 
 
 """

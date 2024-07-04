@@ -21,6 +21,33 @@ from CoderSchoolAI.Neural.Net import Net
 from collections import defaultdict
 
 
+class RunningMeanStd:
+    def __init__(self, epsilon=1e-4, shape=()):
+        self.mean = np.zeros(shape, 'float64')
+        self.var = np.ones(shape, 'float64')
+        self.count = epsilon
+
+    def update(self, x):
+        batch_mean = np.mean(x, axis=0)
+        batch_var = np.var(x, axis=0)
+        batch_count = x.shape[0]
+        self.update_from_moments(batch_mean, batch_var, batch_count)
+
+    def update_from_moments(self, batch_mean, batch_var, batch_count):
+        delta = batch_mean - self.mean
+        tot_count = self.count + batch_count
+
+        new_mean = self.mean + delta * batch_count / tot_count
+        m_a = self.var * self.count
+        m_b = batch_var * batch_count
+        M2 = m_a + m_b + np.square(delta) * self.count * batch_count / tot_count
+        new_var = M2 / tot_count
+        new_count = tot_count
+
+        self.mean = new_mean
+        self.var = new_var
+        self.count = new_count
+
 def deep_q_learning(
     agent: Agent,  # Actor in the Environment
     environment: Shell,  # Environment which the Deep Q Network is being trained on
@@ -39,6 +66,9 @@ def deep_q_learning(
     stop_epsilon=0.01,  # Stop probability for random action selection
     alpha=0.01,  # Learning rate
     reward_norm_coef: float = 1.0,
+    reward_normalization: bool = True,
+    running_reward_std: float = 1.0,
+    max_grad_norm: float = 1.0, # Max norm of the gradient for clipping
     attributes: Union[str, Tuple[str]] = None,  # attributes to be used for the Network
     optimizer=None,  # Optimizer to use for the Agent
     optimizer_kwargs: Optional[Dict[str, Any]] = None,  # Additional keyword arguments
@@ -86,12 +116,15 @@ def deep_q_learning(
     )
     cumulative_reward = 0
     num_episodes_for_logging = 0
+    
+    if reward_normalization:
+        reward_normalizer = RunningMeanStd()
 
     if isinstance(agent.get_actions(), dict):
         raise ValueError("The action space for Deep Q Learning cannot be of type Dict.")
 
     def collect_rollouts():
-        nonlocal epsilon, stop_epsilon, episode, cumulative_reward, num_episodes_for_logging
+        nonlocal epsilon, stop_epsilon, episode, cumulative_reward, num_episodes_for_logging, reward_normalization
         state = environment.reset(attributes)
         done = False
         step = 0
@@ -141,8 +174,17 @@ def deep_q_learning(
             reward *= reward_norm_coef
             # Training Logging
             cumulative_reward += reward
+            
+            # Reward normalization:
+            if reward_normalization:
+                reward_normalizer.update(np.array([reward]))
+                normalized_reward = (reward - reward_normalizer.mean) / (np.sqrt(reward_normalizer.var) + 1e-8)
+                normalized_reward = normalized_reward * running_reward_std
+            else:
+                normalized_reward = reward
+            
             # Store transition in the replay buffer state, action, probs, vals, reward, done
-            buffer.store_memory(state, action, 0, 0, reward, done, next_state)
+            buffer.store_memory(state, action, 0, 0, normalized_reward, done, next_state)
             # Update the state
             state = next_state
             step += 1
@@ -170,24 +212,36 @@ def deep_q_learning(
         actions = th.tensor(actions, dtype=th.int64)
         actions = actions.unsqueeze(-1)
         rewards = th.tensor(rewards, dtype=th.float32)
+        if reward_normalization:
+            rewards = (rewards - reward_normalizer.mean) / (np.sqrt(reward_normalizer.var) + 1e-8)
+            rewards = rewards * running_reward_std
+        
         dones = th.tensor(dones, dtype=th.bool)
 
         # Get current Q-values
         current_q_values = q_network(states)
         current_q_values_for_actions = current_q_values.gather(1, actions)
+        
         # Get next Q-values from target network
         next_q_values = target_q_network(next_states)
         max_next_q_values, _ = next_q_values.max(dim=1)
+        
         # Compute target Q-values
         target_q_values = rewards + gamma * (1 - dones.float()) * max_next_q_values
         target_q_values = th.unsqueeze(target_q_values, 1)
+        
         # Compute loss
         loss = F.mse_loss(current_q_values_for_actions, target_q_values.detach())
         if episode % log_frequency == 0:
             print("Loss:", loss.item())
+        
         # Update
         optimizer.zero_grad()
         loss.backward()
+        
+        # Clipping the gradients is proven to accelerate convergence: https://arxiv.org/pdf/1905.11881
+        th.nn.utils.clip_grad_norm_(q_network.parameters(), max_grad_norm)
+
         optimizer.step()
 
         # Update the target network every `update_target_every` episodes

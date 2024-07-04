@@ -51,6 +51,7 @@ class LinearBlock(Block):
             )  # Ensure that hidden_size is a list of the same length as num_hidden_layers
 
         self.regenerate_network()
+        self.to(self.device)
 
     def _get_join_block(
         self: Block,

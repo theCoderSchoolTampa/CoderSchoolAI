@@ -27,6 +27,7 @@ class JoinBlock(Block):
             b_type=Block.Type.JOIN, activation_function=activation, device=device
         )
         self.join_size = join_size
+        self.to(self.device)
 
     def join_block(self, block: "Block"):
         """

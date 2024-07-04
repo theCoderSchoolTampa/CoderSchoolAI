@@ -4,14 +4,9 @@ import numpy as np
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 import pygame
 import gymnasium as gym
-from gym.spaces import Box as BoxType
-from gym.spaces import Dict as DictType
-from gym.spaces import Discrete as DiscreteType
-from gym.spaces import MultiDiscrete as MultiDiscreteType
-from gym.spaces import MultiBinary as MultiBinaryType
 from CoderSchoolAI.Environment.Attributes import ObsAttribute, ActionAttribute
 from CoderSchoolAI.Environment.Agent import Agent
-from CoderSchoolAI.Environment.Shell import Shell
+from CoderSchoolAI.Environment.Shell import Shell, BoxType, DictType, DiscreteType, MultiDiscreteType, MultiBinaryType
 
 SpaceType = Union[BoxType, DiscreteType, MultiDiscreteType, MultiBinaryType]
 """
@@ -384,6 +379,9 @@ class SnakeEnv(Shell):
         # Misc Class Items
         self.font = pygame.font.Font(None, 36)  # Default font for the text.
 
+    def _reset_apple_position(self):
+        self.apple_position = self.spawn_new_apple()
+
     def reset(self, attributes=None) -> Tuple[
         Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray],
         Union[int, float],
@@ -398,20 +396,17 @@ class SnakeEnv(Shell):
                 if self._soft_reset
                 else print("Resetting Snake.")
             )
+            
+        self._reset_apple_position()
 
-        self.apple_position = self.spawn_new_apple()
-        if self._soft_reset:
-            self._soft_reset = False
-            self._apples_consumed += 1
-
-        else:
-            self.snake_agent.reset_snake()
-            self._apples_consumed = 0
-            self.__last_moving_direction = SnakeAgent.SnakeAction.RIGHT
+        self.snake_agent.reset_snake()
+        self._apples_consumed = 0
+        self.__last_moving_direction = SnakeAgent.SnakeAction.RIGHT
 
         self.update_observation_variables()
         for name, obs in self.ObsAttributes.items():
             obs.update_func()
+            
         return self.get_observation(attributes)
 
     def step(
@@ -429,18 +424,24 @@ class SnakeEnv(Shell):
             print(f"Taking Action: {action}")
         # Updates the Observation Variables
         # print(action)
-        reward, finished = self.get_current_reward(feedback)
+        reward, finished, info = self.get_current_reward(feedback)
         if not finished:
             self.update_observation_variables()
             for name, obs in self.ObsAttributes.items():
                 obs.update_func()
-
+        
         if self.consumed_apple():
             self.snake_agent.increment_score()
+        
+        if info.get("reset_apple_position", False):
+            self._reset_apple_position()
+            self._soft_reset = False
+            self._apples_consumed += 1
+        
         # Returns the new game state, reward, and whether or not the Snake has reached the goal.
         return self.get_observation(attributes), reward, finished
 
-    def get_current_reward(self, feedback) -> Tuple[Union[int, float], bool]:
+    def get_current_reward(self, feedback) -> Tuple[Union[int, float], bool, Dict[str, Any]]:
         """
 
         Note the Return Values:
@@ -454,6 +455,7 @@ class SnakeEnv(Shell):
             - Whether or not The Snake is Still inside of our Grid
 
         """
+        info = {}
         distance_to_apple = euclidean_distance(
             self.snake_agent.body[-1], self.apple_position
         )
@@ -463,22 +465,29 @@ class SnakeEnv(Shell):
         )  # Minus the length of the snake at the Start
         is_in_bounds = self._is_snake_in_bounds()
         head_intersects_body = self.snake_agent.head_intersects_body()
+        
         if not is_in_bounds or head_intersects_body:
             if self.verbose:
                 print("Snake Has Intersected with a non-collidable area.")
             self._soft_reset = False
-            return -2.5, True
+            return -5, True, info
+        
         if apple_consumed:
             if self.verbose:
                 print("Snake Has Consumed an Apple.")
             self._soft_reset = True
-            return 3.0 + 0.1 * length_of_snake, True
-        """
-        Here we assign rewards for different viewable attributes of the environment.
-        """
-        distance_penalty = 0  # -distance_to_apple / euclidean_distance((self.width, self.height), (0, 0))
-        length_of_snake_reward = 0  # length_of_snake / self.max_length_of_snake
-        return (distance_penalty + length_of_snake_reward + feedback), False
+            info["reset_apple_position"] = self._soft_reset
+            
+            
+            # return 1.0 + 0.1 * length_of_snake, length_of_snake == self.max_length_of_snake, info
+            # return -0.1 + int(apple_consumed) * 5, length_of_snake == self.max_length_of_snake, info
+        
+        # Here we assign rewards for different viewable attributes of the environment.
+        distance_penalty = distance_to_apple / euclidean_distance((self.width, self.height), (0, 0)) # fraction of distance compared to size of grid        
+        length_of_snake_reward = length_of_snake / self.max_length_of_snake # how big the snake is vs. how big it could be
+        reward = -0.1 + int(apple_consumed) * 5 + 2 * length_of_snake_reward - distance_penalty + feedback
+        
+        return reward, apple_consumed and length_of_snake == self.max_length_of_snake, info
 
     def update_env(self):
         d_t = self.clock.tick(self.target_fps) / 1000.0
