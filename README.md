@@ -58,29 +58,46 @@ This class provides the basic structure of an environment. It handles the attrib
 ```python
 class Shell:
     def __init__(self, target_fps: int, is_user_control: bool, resolution: Tuple[int, int], environment_name: str, verbose= False, console_only=False):
-        pass
-    def __getitem__(self, name):
-        pass
-    def get_attribute(self, name) -> Union[Union[ObsAttribute, ActionAttribute], Dict[str, Union[ObsAttribute, ActionAttribute]]]:
-        pass
+        """[User Implemented] Defines agents, environment vars, and state/action attributes. User must register attributes that they want tracked by the API."""
+    
+    def get_attribute(self, name) -> Union[
+        Union[ObsAttribute, ActionAttribute], 
+        Dict[str, Union[ObsAttribute, ActionAttribute]]]:
+        """Retrieves attributes that are registered with the environment."""
+    
     def get_observation(self, attributes=None) -> Dict[str, np.ndarray]:
         pass
+    
     def register_attribute(self, attribute: Union[ObsAttribute, ActionAttribute]):
         pass
+    
     def update_env_attributes(self):
         pass
+    
     def update_attribute(self, name, new_data):
-        pass
+        """Updates the value of an attribute with an instance of `new_data`"""
+    
     def reset(self, attributes=None) -> Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray]:
-        pass
-    def step(self, action: Union[int, np.ndarray, Dict[str, ActionAttribute]], d_t:float, attributes=None) -> Tuple[Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray], Union[int, float], Union[bool, np.ndarray]]:
-        pass
-    def get_current_reward(self, action: Union[int, np.ndarray, Dict[str, ActionAttribute]], current_state: Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray]) -> Tuple[Union[int, float], bool]:
-        pass
+        """[User Implemented] Resets the environment and returns the new observation from the environment"""
+
+    def step(self, 
+        action: Union[int, np.ndarray, Dict[str, ActionAttribute]], 
+        d_t:float, 
+        attributes=None) -> Tuple[Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray], Union[int, float], Union[bool, np.ndarray]]:
+        """[User Implemented] Steps the environment with `action` and returns `next_state, reward, done`"""
+
+    def get_current_reward(
+        self, 
+        action: Union[int, np.ndarray, Dict[str, ActionAttribute]], 
+        current_state: Union[Dict[str, ObsAttribute], ObsAttribute, np.ndarray]) -> Tuple[Union[int, float], bool]:
+        """[User Implemented] returns the current reward given a `state` and `action`."""
+
     def update_env(self) -> None:
         pass
+    
     def render_env(self):
         pass
+    
     @staticmethod
     def static_render_env(env: 'Shell', *args, **kwargs):
         pass
@@ -116,7 +133,7 @@ class Shell:
 - `static_render_env(env: 'Shell', *args, **kwargs)`: This is an unimplemented method intended for customization of the Rendering of the Environment.
 
 ## Attribute Class
-The Attribute class represents an attribute of an environment, such as velocity or position. These attributes can be observation attributes (state of the environment) or action attributes (actions that can be performed in the environment).
+The Attribute class represents an attribute of an environment, such as velocity or position. These attributes can be observation attributes (state of the environment) or action attributes (actions that can be performed in the environment). User registers Attributes with an environment for them to be tracked and updated.
 
 ```python
 class Attribute:
@@ -191,7 +208,7 @@ class Agent:
 
 - `update(self, state, action, next_state, reward)`: Updates the agent's knowledge or parameters based on the observed state, action, next state, and reward from the environment. This method must be implemented in a subclass.
 
-## ReplayBuffer Classes
+## ReplayBuffer
 ReplayBuffer classes are used to store and retrieve the experiences of an agent during training. It helps in training the agent with a technique called Experience Replay.
 
 There are two types of ReplayBuffer classes: BasicReplayBuffer and DictReplayBuffer.
@@ -252,7 +269,7 @@ Your environment should extend the `Shell` class. You need to implement methods 
 class MyEnvironment(Shell):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Initialize environment specific variables
+        # Initialize environment specific variables and 
 
     def reset(self, attributes=None):
         # Reset environment to the initial state

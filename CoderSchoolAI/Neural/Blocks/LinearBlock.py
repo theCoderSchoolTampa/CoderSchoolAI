@@ -17,6 +17,7 @@ class LinearBlock(Block):
         hidden_size: Union[int, List[int]] = 128,
         dropout: Optional[float] = None,
         activation: Optional[Callable] = None,
+        use_layer_norm: bool = False,
         device: th.device = th.device("cpu"),
     ):  # TODO: Add LayerNorm option on the End of the LinearBlock.
         """
@@ -43,14 +44,19 @@ class LinearBlock(Block):
         self.hidden_size = hidden_size
         self.dropout = dropout
         self._use_dropout = dropout is not None and self.dropout > 0.0
-        self.module = None
+        self._use_layer_norm = use_layer_norm
         self._use_custom_hidden = isinstance(hidden_size, list)
+        
         if self._use_custom_hidden:
             assert (
                 len(hidden_size) == self.num_hidden_layers
             )  # Ensure that hidden_size is a list of the same length as num_hidden_layers
 
+        self.layers = []
+        self.module = nn.Sequential(*self.layers)
+        
         self.regenerate_network()
+        
         self.to(self.device)
 
     def _get_join_block(
@@ -124,17 +130,21 @@ class LinearBlock(Block):
                     [self.output_size],
                 ]
             )
-        layers = []
+        self.layers = []
         prev_size = self.input_size
         for i in range(len(layer_size)):
-            layers.append(
+            self.layers.append(
                 nn.Linear(int(prev_size), int(layer_size[i]), device=self.device)
             )
-            layers.append(self.activation_function())
+            self.layers.append(self.activation_function())
             if self._use_dropout:
-                layers.append(nn.Dropout(p=self.dropout))
+                self.layers.append(nn.Dropout(p=self.dropout))
             prev_size = layer_size[i]
-        self.module = nn.Sequential(*layers)
+            
+        if len(self.layers) > 0 and self._use_layer_norm:
+            self.layers.append(nn.LayerNorm(prev_size))
+            
+        self.module = nn.Sequential(*self.layers)
 
     def copy(self):
         """

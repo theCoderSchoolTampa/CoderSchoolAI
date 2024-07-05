@@ -116,7 +116,7 @@ class ActorCritic(nn.Module):
         )
         self.features_network = (
             self.__features_extractor_class(self.observation_space)
-            if not isinstance(features_extractor, nn.Module)
+            if not features_extractor
             else features_extractor
         )
         assert isinstance(
@@ -134,6 +134,7 @@ class ActorCritic(nn.Module):
             if device == "cuda" and th.cuda.is_available()
             else th.device("cpu")
         )
+        
         # Output from previous into the current
         self._features_dim = (
             self.features_network.output_size

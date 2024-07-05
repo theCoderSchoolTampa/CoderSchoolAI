@@ -122,8 +122,12 @@ class InputBlock(Block):
     def forward(self, x) -> th.Tensor:
         if isinstance(x, np.ndarray):
             x = th.from_numpy(x)
-
-        x = x.to(self.device)
+        
+        if isinstance(x, dict):
+            x = {k: v.to(self.device) for k, v in x.items()}
+        else:
+            x = x.to(self.device)
+            
         if self.forward_connections is None or (
             isinstance(self.forward_connections, dict)
             and len(self.forward_connections) == 0

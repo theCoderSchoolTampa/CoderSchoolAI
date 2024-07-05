@@ -33,6 +33,10 @@ class Net(nn.Module):
     
     @property
     def output_size(self):
+        return self._features_dim
+    
+    @property
+    def _features_dim(self):
         assert len(self.blocks) > 0
         return self.blocks[-1].output_size
     

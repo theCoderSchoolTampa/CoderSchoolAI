@@ -172,8 +172,6 @@ def deep_q_learning(
             next_state, reward, done = environment.step(action, 0, attributes)
 
             reward *= reward_norm_coef
-            # Training Logging
-            cumulative_reward += reward
             
             # Reward normalization:
             if reward_normalization:
@@ -182,6 +180,9 @@ def deep_q_learning(
                 normalized_reward = normalized_reward * running_reward_std
             else:
                 normalized_reward = reward
+                
+            # Training Logging
+            cumulative_reward += normalized_reward
             
             # Store transition in the replay buffer state, action, probs, vals, reward, done
             buffer.store_memory(state, action, 0, 0, normalized_reward, done, next_state)
@@ -235,7 +236,7 @@ def deep_q_learning(
         if episode % log_frequency == 0:
             print("Loss:", loss.item())
         
-        # Update
+        # Update:
         optimizer.zero_grad()
         loss.backward()
         
@@ -261,7 +262,7 @@ def PPO(
     clip_epsilon: float = 0.2,
     alpha: float = 0.001,
     epsilon: float = 0.0001,
-    entropy_coef: float = 0.001,
+    entropy_coef: float = 0.005,
     critic_coef: float = 0.8,
     attributes: Union[str, Tuple[str]] = None,  # attributes to be used for the Network
     optimizer: Optional[th.optim.Optimizer] = None,
@@ -269,6 +270,12 @@ def PPO(
     ppo_epochs: int = 4,
     minibatch_size: int = 16,
     fps: int = 120,
+    max_grad_norm: float = 1.0,
+    reward_norm_coef: float = 1.0,
+    reward_normalization: bool = True,
+    running_reward_std: float = 1.0,
+    log_frequency: int = 10,
+    
 ) -> None:
     """
     Proximal Policy Optimization (PPO): Reinforcement Learning with Trust Region Optimization
@@ -308,12 +315,19 @@ def PPO(
         if optimizer is None
         else optimizer
     )
+    
     if isinstance(agent.get_actions(), dict):
         pass
 
+    if reward_normalization:
+        reward_normalizer = RunningMeanStd()
+        
+    cumulative_reward = 0
+    num_episodes_for_logging = 0
+
     def collect_rollouts():  # TODO: Finish Vec Env Support
         # Convert to Batch
-        nonlocal episode
+        nonlocal episode, reward_normalization, reward_normalizer
         state = (
             environment.reset(attributes)
             if not isinstance(environment, list)
@@ -339,6 +353,15 @@ def PPO(
                 done = False
                 step = 0
                 episode += 1
+                num_episodes_for_logging += 1
+                if num_episodes_for_logging % log_frequency == 0:
+                    avg_reward = cumulative_reward / log_frequency
+                    print(
+                        f"Episode: {episode}, Avg Reward: {avg_reward}, Epsilon: {epsilon}"
+                    )
+                    # Reset cumulative_reward and num_episodes_for_logging
+                    cumulative_reward = 0
+                    num_episodes_for_logging = 0
 
             # Convert state to tensor for feeding into the network
             if not isinstance(state, dict):
@@ -364,6 +387,15 @@ def PPO(
                 a_s.cpu().numpy(), 0, attributes
             )
 
+            # Reward normalization:
+            if reward_normalization:
+                reward_normalizer.update(np.array([reward]))
+                normalized_reward = (reward - reward_normalizer.mean) / (np.sqrt(reward_normalizer.var) + 1e-8)
+                normalized_reward = normalized_reward * running_reward_std
+            else:
+                normalized_reward = reward
+                
+            cumulative_reward 
             # Convert to Batch
             next_state = (
                 next_state
@@ -372,7 +404,7 @@ def PPO(
             )
 
             # Store transition in the replay buffer state, action, probs, vals, reward, done
-            buffer.store_memory(state, actions, probs, vals, reward, done, next_state)
+            buffer.store_memory(state, actions, probs, vals, normalized_reward, done, next_state)
             # Update the state
             state = next_state
             step += 1
@@ -457,8 +489,10 @@ def PPO(
                 new_log_probs, _, new_vals = actor_critic_net.get_sample_and_values(
                     mini_states
                 )
-                # Critic Loss <-
+                
+                # Critic Loss <- L_2(expected return , calculated expected return)
                 critic_loss = F.mse_loss(new_vals, mini_returns)
+                
                 # Computer Ratio of new/old probs
                 ratio = (th.exp(new_log_probs)), th.exp(mini_log_probs)
 
@@ -477,10 +511,15 @@ def PPO(
                     - entropy_coef * th.mean(-th.exp(new_log_probs) * new_log_probs)
                 )
 
-                # (Update)
+                # Update:
                 optimizer.zero_grad()
                 loss.backward()
+                
+                # Clipping the gradients is proven to accelerate convergence: https://arxiv.org/pdf/1905.11881
+                th.nn.utils.clip_grad_norm_(actor_critic_net.parameters(), max_grad_norm)
+
                 optimizer.step()
+
 
 
 class FloatDict(defaultdict):

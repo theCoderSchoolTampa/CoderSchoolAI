@@ -5,11 +5,13 @@ from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 For more information regarding Spaces, see https://gym.openai.com/docs/spaces/
 """
 import gymnasium as gym
-from gym.spaces import Box as BoxType
-from gym.spaces import Dict as DictType
-from gym.spaces import Discrete as DiscreteType
-from gym.spaces import MultiDiscrete as MultiDiscreteType
-from gym.spaces import MultiBinary as MultiBinaryType
+from gymnasium.spaces import (
+    Box as BoxType, 
+    Dict as DictType, 
+    Discrete as DiscreteType, 
+    MultiDiscrete as MultiDiscreteType, 
+    MultiBinary as MultiBinaryType
+    )
 
 SpaceType = Union[BoxType, DiscreteType, MultiDiscreteType, MultiBinaryType]
 
