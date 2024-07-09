@@ -27,9 +27,7 @@ class OutputBlock(Block):
         """save these as self attributes"""
         self.input_size = input_size
         self.num_classes = num_classes
-        self.module = None
-
-        self.regenerate_network()
+        self.module = self.regenerate_network()
         self.to(self.device)
 
     def forward(self, x) -> th.Tensor:
@@ -46,14 +44,14 @@ class OutputBlock(Block):
         x = self.module(x)
         return x
 
-    def regenerate_network(self):
+    def regenerate_network(self) -> nn.Module:
         """
         This function is used to correct/build a network from the internal state/structure of the block.
         """
         layers = []
         layers.append(nn.Linear(self.input_size, self.num_classes, device=self.device))
         layers.append(self.activation_function())
-        self.module = nn.Sequential(*layers)
+        return nn.Sequential(*layers)
 
     def copy(self):
         output_copy = OutputBlock(

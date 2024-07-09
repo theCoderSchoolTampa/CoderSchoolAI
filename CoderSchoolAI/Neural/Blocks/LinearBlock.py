@@ -52,10 +52,7 @@ class LinearBlock(Block):
                 len(hidden_size) == self.num_hidden_layers
             )  # Ensure that hidden_size is a list of the same length as num_hidden_layers
 
-        self.layers = []
-        self.module = nn.Sequential(*self.layers)
-        
-        self.regenerate_network()
+        self.module = self.regenerate_network()
         
         self.to(self.device)
 
@@ -144,7 +141,7 @@ class LinearBlock(Block):
         if len(self.layers) > 0 and self._use_layer_norm:
             self.layers.append(nn.LayerNorm(prev_size))
             
-        self.module = nn.Sequential(*self.layers)
+        return nn.Sequential(*self.layers)
 
     def copy(self):
         """

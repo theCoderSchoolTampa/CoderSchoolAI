@@ -43,7 +43,9 @@ class ConvBlock(Block):
         self.module = None
         self.output_size = None
         self.disable_max_pool = disable_max_pool
-        self.regenerate_network()
+        self.output_size = 0
+        self.module = self.regenerate_network()
+        
         self.to(self.device)
 
     def _get_join_block(
@@ -142,7 +144,7 @@ class ConvBlock(Block):
             )
             layers.append(self.activation_function())
             self.output_size = int(self._desired_output_size)
-        self.module = nn.Sequential(*layers)
+        return nn.Sequential(*layers)
 
     def copy(self):
         """

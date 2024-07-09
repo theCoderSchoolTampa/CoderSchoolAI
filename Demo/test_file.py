@@ -150,6 +150,7 @@ import torch as th
 snake_env = SnakeEnv(width=16, height=16)
 input_block = InputBlock(in_attribute=snake_env.get_attribute("game_state"), is_module_dict=False,)
 conv_block = ConvBlock(input_shape=input_block.in_attribute.space.shape,num_channels=1,depth=5,)
+
 # out_block = OutputBlock(input_size=conv_block.output_size, num_classes=len(snake_env.snake_agent.get_actions()),)
 
 ppo_net = Net(name='test_ppo_net_with_game_state')

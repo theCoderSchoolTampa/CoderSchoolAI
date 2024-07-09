@@ -24,8 +24,7 @@ class DictInputBlock(Block):
             b_type=Block.Type.INPUT, activation_function=None, device=device
         )
         self.in_attributes = in_attributes
-        self._is_convolutional = False
-        self._needs_flatten = True
+        self._module_dict = modules
                
         assert isinstance(in_attributes, dict)
         assert isinstance(modules, dict)
@@ -33,19 +32,24 @@ class DictInputBlock(Block):
         for key in set(in_attributes.keys()).union(modules.keys()):
             assert key in modules, f"No matching key from in_attributes in modules: {key}"
             assert key in in_attributes, f"No matching key from modules in in_attributes: {key}"
+        
+        self._keys = sorted(in_attributes.keys())
             
         # Multi-Attribute Networks
         flatten_size = 0
-        for key, attr in in_attributes.items():
-            if hasattr(modules[key], "output_size"):
-                    flatten_size += getattr(modules[key], "output_size")
+        for key in self._keys:
+            if hasattr(in_attributes[key], "output_size"):
+                    flatten_size += getattr(in_attributes[key], "output_size")
             else:
-                x = th.zeros(size=(1,) + tuple(attr.shape))
-                output = modules[key](x)
+                with th.no_grad():
+                    attr = in_attributes[key]
+                    x = th.zeros(size=(1,) + tuple(attr.shape))
+                    output = modules[key](x)
                 output_size = output.size()[-1]
                 flatten_size += output_size
                     
         self.flatten_size = flatten_size
+        self.output_size = self.flatten_size
         self.module = th.ModuleDict(modules)
         self.to(self.device)
 
@@ -87,7 +91,8 @@ class DictInputBlock(Block):
 
         # Collect the tensors from each sub network            
         outputs = []
-        for key, val in x.items():
+        for key in self._keys:
+            val = x[key]
             outputs.append(self.module[key](val))
         
         # Concat along the feature dimension:
@@ -102,11 +107,14 @@ class DictInputBlock(Block):
         pass
 
     def copy(self):
-        return DictInputBlock(
-            in_attribute=self.in_attribute,
-            is_module_dict=self._is_mod_dict,
+        n_block = DictInputBlock(
+            in_attributes=self.in_attributes,
+            modules=self._module_dict.copy(),
             device=self.device,
         )
+        n_block.load_state_dict(self.state_dict())
+        
+        return n_block
 
     def __repr__(self) -> str:
         return self.__str__()
