@@ -67,18 +67,30 @@ def dict_list_to_batch(n_dicts: List[Dict]) -> Dict[str, np.ndarray]:
     return batch_dict
 
 
-def dict_to_tensor(dict_input, device) -> Dict[str, th.Tensor]:
+def dict_to_tensor(input_dict: Union[List[Dict[str, Any]], Dict[str, List[Any]]], device) -> Dict[str, th.Tensor]:
     """
-    Convert a dictionary of numpy arrays to PyTorch tensors, or an Attribute Dict to PyTorch tensors
-
+    Convert a dictionary of lists or a list of dictionaries to PyTorch tensors.
+    
+    Args:
+        input_dict: Either a list of dictionaries or a dictionary of lists.
+        device: The device to move the tensors to.
+    
+    Returns:
+        A dictionary of PyTorch tensors.
     """
     tensor_dict = {}
-    for key, value in dict_input.items():
-        # Convert numpy arrays to PyTorch tensors
-        if isinstance(value, Attribute):
-            value = value.data
-        if isinstance(value, np.ndarray):
-            tensor_dict[key] = th.from_numpy(value).float().to(device)
+    if isinstance(input_dict, list):
+        for key in input_dict[0].keys():
+            # Convert numpy arrays to PyTorch tensors
+            tensor_dict[key] = th.tensor(np.array([d[key] for d in input_dict]), dtype=th.float32, device=device)
+
+    elif isinstance(input_dict, dict):
+        for key, value in input_dict.items():
+            # Convert numpy arrays to PyTorch tensors
+            if isinstance(value, Attribute):
+                value = value.data
+            if isinstance(value, np.ndarray):
+                tensor_dict[key] = th.from_numpy(value).float().to(device)
 
     return tensor_dict
 

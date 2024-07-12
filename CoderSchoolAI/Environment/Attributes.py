@@ -60,6 +60,11 @@ class Attribute:
         n_attr = Attribute(self.name, self.space)
         return n_attr
 
+    def __str__(self):
+        return f"<(Attribute: '{self.name}') Space: {self.space}, Shape: {self.shape}>"
+    
+    def __repr__(self):
+        return str(self)
 
 """
 Attributes of an Environment can be related to either 

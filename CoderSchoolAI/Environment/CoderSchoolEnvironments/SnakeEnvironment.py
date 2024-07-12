@@ -92,13 +92,26 @@ class SnakeAgent(Agent):
         Increments the score of the snake.
         """
         self.body.appendleft(self._last_removed)
+        
+    def __get_opposite_wall_direction(self, width, height):
+        head_x, head_y = self.body[-1]
+        distances = [
+            (head_x, SnakeAgent.SnakeAction.RIGHT),
+            (width - 1 - head_x, SnakeAgent.SnakeAction.LEFT),
+            (head_y, SnakeAgent.SnakeAction.DOWN),
+            (height - 1 - head_y, SnakeAgent.SnakeAction.UP)
+        ]
+        _, action = max(distances, key=lambda x: x[0])
+        return action
 
-    def reset_snake(self):
+    def reset_snake(self, width, height):
         """
-        Resets the snake to its starting position.
+        Resets the snake to a random starting position.
         """
-        self.body = deque([(i, 0) for i in range(3)])
-        self.last_action = SnakeAgent.SnakeAction.RIGHT
+        start_x = np.random.randint(2, width - 3)
+        start_y = np.random.randint(2, height - 3)
+        self.body = deque([(start_x + i, start_y) for i in range(3)])
+        self.last_action = SnakeAgent.SnakeAction(self.__get_opposite_wall_direction(width, height))
         self._last_removed = None
 
     def get_actions(self):
@@ -399,9 +412,9 @@ class SnakeEnv(Shell):
             
         self._reset_apple_position()
 
-        self.snake_agent.reset_snake()
+        self.snake_agent.reset_snake(self.width, self.height)
         self._apples_consumed = 0
-        self.__last_moving_direction = SnakeAgent.SnakeAction.RIGHT
+        self.__last_moving_direction = self.snake_agent.last_action
 
         self.update_observation_variables()
         for name, obs in self.ObsAttributes.items():
@@ -478,14 +491,13 @@ class SnakeEnv(Shell):
             self._soft_reset = True
             info["reset_apple_position"] = self._soft_reset
             
-            
-            # return 1.0 + 0.1 * length_of_snake, length_of_snake == self.max_length_of_snake, info
-            # return -0.1 + int(apple_consumed) * 5, length_of_snake == self.max_length_of_snake, info
-        
         # Here we assign rewards for different viewable attributes of the environment.
         distance_penalty = distance_to_apple / euclidean_distance((self.width, self.height), (0, 0)) # fraction of distance compared to size of grid        
         length_of_snake_reward = length_of_snake / self.max_length_of_snake # how big the snake is vs. how big it could be
-        reward = -0.1 + int(apple_consumed) * 5 + 2 * length_of_snake_reward - distance_penalty + feedback
+        
+        apple_eaten_reward = int(apple_consumed) * (1 +  int(length_of_snake == 0) * 5) # Apple eaten: 1st time gives 5 reward else 1
+        
+        reward = -0.1 + apple_eaten_reward + 2 * length_of_snake_reward - distance_penalty + feedback
         
         return reward, apple_consumed and length_of_snake == self.max_length_of_snake, info
 

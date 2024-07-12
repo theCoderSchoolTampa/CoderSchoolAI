@@ -148,17 +148,40 @@ from CoderSchoolAI.Neural.ActorCritic.ActorCriticNetwork import *
 import torch as th
 
 snake_env = SnakeEnv(width=16, height=16)
-input_block = InputBlock(in_attribute=snake_env.get_attribute("game_state"), is_module_dict=False,)
-conv_block = ConvBlock(input_shape=input_block.in_attribute.space.shape,num_channels=1,depth=5,)
+print("attr:", snake_env.ObsAttributes)
+input_block = DictInputBlock(
+    in_attributes={ "game_state": snake_env["game_state"] }, 
+    modules={
+        "game_state": ConvBlock(input_shape=snake_env["game_state"].shape, num_channels=1, depth=5),
+    },
+    device="cuda"
+)
+lin_block = LinearBlock(
+    input_size=input_block.output_size, 
+    hidden_size=512, 
+    use_layer_norm=True, 
+    dropout=0.3, 
+    activation=nn.GELU, 
+    device="cuda", 
+    num_hidden_layers=1, 
+    output_size=512
+)
+
 
 # out_block = OutputBlock(input_size=conv_block.output_size, num_classes=len(snake_env.snake_agent.get_actions()),)
 
 ppo_net = Net(name='test_ppo_net_with_game_state')
 ppo_net.add_block(input_block)
-ppo_net.add_block(conv_block)
+ppo_net.add_block(lin_block)
 ppo_net.compile()
 
-actor_critic_net = ActorCritic(snake_env["game_state"], snake_env["actions"], ppo_net, net_arch=[32, dict(vf=[32, 32], pi=[32, 32])],)
+actor_critic_net = ActorCritic(
+    snake_env["game_state"], 
+    snake_env["actions"], 
+    ppo_net, 
+    net_arch=[512, dict(vf=[128, 128, 32], pi=[64, 64])],
+    activation_fnc=nn.GELU,
+)
 from CoderSchoolAI.Training.Algorithms import PPO
 from CoderSchoolAI.Environment.Agent import BasicReplayBuffer, DictReplayBuffer
 batch_size = 512
@@ -168,7 +191,15 @@ PPO(
     environment=snake_env,
     actor_critic_net=actor_critic_net,
     buffer=DictReplayBuffer(batch_size),
+    alpha=0.005,
     num_episodes=10000,
     max_steps_per_episode=100,
-    batch_size=batch_size,
+    batch_size=128,
+    minibatch_size=128,
+    critic_coef=0.3,
+    entropy_coef=0.05,
+    ppo_epochs=1,
+    reward_norm_coef=1.0,
+    reward_normalization=True,
+    logging_callback=lambda: f"Apples Eaten: "
 )

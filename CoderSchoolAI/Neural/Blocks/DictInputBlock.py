@@ -50,7 +50,7 @@ class DictInputBlock(Block):
                     
         self.flatten_size = flatten_size
         self.output_size = self.flatten_size
-        self.module = th.ModuleDict(modules)
+        self.module = nn.ModuleDict(modules)
         self.to(self.device)
 
     def join_block(self, block: Union[Block, List[Block]], key: str = None):

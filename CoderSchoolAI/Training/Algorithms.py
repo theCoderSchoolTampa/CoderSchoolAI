@@ -20,6 +20,11 @@ from CoderSchoolAI.Environment.Shell import Shell
 from CoderSchoolAI.Neural.Net import Net
 from collections import defaultdict
 
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 
 class RunningMeanStd:
     def __init__(self, epsilon=1e-4, shape=()):
@@ -74,6 +79,7 @@ def deep_q_learning(
     optimizer_kwargs: Optional[Dict[str, Any]] = None,  # Additional keyword arguments
     fps: int = 120,  # Frames per second to run the Agent
     log_frequency: int = 10,  # Num Episodes Between logs
+    logging_callback: Optional[Callable] = None, # Optional callback that will get logged by the logger (must return type str)
 ) -> None:
     """
     Deep Q Learning: Reinforcement Learning with Deep Q-Network
@@ -275,7 +281,7 @@ def PPO(
     reward_normalization: bool = True,
     running_reward_std: float = 1.0,
     log_frequency: int = 10,
-    
+    logging_callback: Optional[Callable] = None, # Optional callback that will get logged by the logger (must return type str)
 ) -> None:
     """
     Proximal Policy Optimization (PPO): Reinforcement Learning with Trust Region Optimization
@@ -327,7 +333,7 @@ def PPO(
 
     def collect_rollouts():  # TODO: Finish Vec Env Support
         # Convert to Batch
-        nonlocal episode, reward_normalization, reward_normalizer
+        nonlocal episode, reward_normalization, reward_normalizer, cumulative_reward, num_episodes_for_logging
         state = (
             environment.reset(attributes)
             if not isinstance(environment, list)
@@ -356,7 +362,7 @@ def PPO(
                 num_episodes_for_logging += 1
                 if num_episodes_for_logging % log_frequency == 0:
                     avg_reward = cumulative_reward / log_frequency
-                    print(
+                    logger.info(
                         f"Episode: {episode}, Avg Reward: {avg_reward}, Epsilon: {epsilon}"
                     )
                     # Reset cumulative_reward and num_episodes_for_logging
@@ -375,7 +381,7 @@ def PPO(
                 state_tensor = {k: v.unsqueeze(0) for k, v in state_tensor.items()}
 
             # Feed the state into the Actor Critic Network
-            probs, actions, vals = actor_critic_net.get_sample_and_values(state_tensor)
+            log_probs, actions, vals = actor_critic_net.get_sample_and_values(state_tensor)
 
             # TODO: This is a temporary Solution to the batched action sampling NEEDS FIX
             a_s = actions
@@ -384,7 +390,7 @@ def PPO(
 
             # Take action in the environment
             next_state, reward, done = environment.step(
-                a_s.cpu().numpy(), 0, attributes
+                a_s.cpu().numpy()[0], 0, attributes
             )
 
             # Reward normalization:
@@ -393,9 +399,10 @@ def PPO(
                 normalized_reward = (reward - reward_normalizer.mean) / (np.sqrt(reward_normalizer.var) + 1e-8)
                 normalized_reward = normalized_reward * running_reward_std
             else:
-                normalized_reward = reward
+                normalized_reward = reward * reward_norm_coef
                 
-            cumulative_reward 
+            cumulative_reward += normalized_reward
+            
             # Convert to Batch
             next_state = (
                 next_state
@@ -404,42 +411,58 @@ def PPO(
             )
 
             # Store transition in the replay buffer state, action, probs, vals, reward, done
-            buffer.store_memory(state, actions, probs, vals, normalized_reward, done, next_state)
+            buffer.store_memory(state, actions, log_probs, vals, normalized_reward, done, next_state)
             # Update the state
             state = next_state
             step += 1
             environment.render_env()
 
-    def compute_advantages(rewards, vals, dones):
+    def compute_advantages(rewards, vals, dones, device):
         """
         Computes the advantage for the Critic
         """
-        advantages = th.zeros_like(th.from_numpy(rewards), dtype=th.float)
-        last_advantage = 0  # Assume the value function is zero for the terminal state
+        rewards = th.tensor(rewards, dtype=th.float32, device=device)
+        dones = th.tensor(dones, dtype=th.float32, device=device)
+        advantages = th.zeros_like(rewards, device=device)
+        last_advantage = 0
         for t in range(len(rewards) - 2, -1, -1):
             delta = rewards[t] + gamma * vals[t + 1] * (1 - dones[t]) - vals[t]
             last_advantage = delta + gamma * last_advantage * (1 - dones[t])
             advantages[t] = last_advantage
+        
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
         return advantages
 
-    def compute_returns(rewards, dones):
-        returns = th.zeros_like(th.from_numpy(rewards), dtype=th.float)
+    def compute_returns(rewards, dones, device):
+        rewards = th.tensor(rewards, dtype=th.float32, device=device)
+        dones = th.tensor(dones, dtype=th.float32, device=device)
+        returns = th.zeros_like(rewards, device=device)
         last_return = 0
         for t in range(len(rewards) - 2, -1, -1):
             last_return = rewards[t] + gamma * last_return * (1 - dones[t])
             returns[t] = last_return
         return returns
+    
+    def evaluate_actions(states, actions):
+        log_probs, _, values = actor_critic_net.get_sample_and_values(states)
+        entropy = -(log_probs.exp() * log_probs).mean()
+        return log_probs, entropy, values
 
     while episode < num_episodes + 1:
-        # Collect samples, then perform an update on the Q-network
+        # Collect samples, then perform an update on the net
+        actor_critic_net.eval()
         collect_rollouts()
+        
         # Sample a batch from the replay buffer
         states, actions, log_probs, vals, rewards, dones, next_states, _ = (
             buffer.generate_batches()
         )
         buffer.clear_memory()
+        
         # Convert to tensors
-        if not isinstance(states, dict):
+        vals = th.cat(vals, dim=0).view(-1, 1).to(actor_critic_net.device)
+        
+        if not isinstance(buffer, DictReplayBuffer):
             states = th.tensor(
                 states,
                 dtype=th.float32,
@@ -464,10 +487,11 @@ def PPO(
             dtype=th.float32,
         ).to(device=actor_critic_net.device)
 
-        advantages = compute_advantages(rewards, vals, dones).to(
-            actor_critic_net.device
-        )  # Compute Temporal Difference
-        returns = compute_returns(rewards, dones).to(actor_critic_net.device)
+        advantages = compute_advantages(rewards, vals, dones, actor_critic_net.device)
+        # Compute Temporal Difference
+        returns = compute_returns(rewards, dones, actor_critic_net.device)
+        
+        actor_critic_net.train()
 
         for _ in range(ppo_epochs):
 
@@ -490,35 +514,44 @@ def PPO(
                     mini_states
                 )
                 
-                # Critic Loss <- L_2(expected return , calculated expected return)
+                new_log_probs = th.cat(new_log_probs, dim=0).view(-1, 1).to(actor_critic_net.device)
+                new_vals = new_vals.to(actor_critic_net.device)
+                mini_returns = mini_returns.view(-1, 1).to(actor_critic_net.device)
+                
+                mini_log_probs = mini_log_probs.detach()
+                mini_returns = mini_returns.detach()
+                mini_advantages = mini_advantages.detach()
+                
+                
+                # Critic Loss
                 critic_loss = F.mse_loss(new_vals, mini_returns)
                 
-                # Computer Ratio of new/old probs
-                ratio = (th.exp(new_log_probs)), th.exp(mini_log_probs)
+                # Actor Loss
+                ratio = (new_log_probs - mini_log_probs).exp() # Computed Ratio of new/old probs
+                surr1 = ratio * mini_advantages
+                surr2 = th.clamp(ratio, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * mini_advantages
+                actor_loss = -th.min(surr1, surr2).mean()
 
-                # Actor (Policy) Loss
-                surr_1 = ratio * mini_advantages
-                surr_2 = (
-                    th.clamp(ratio, 1.0 - clip_epsilon, 1.0 + clip_epsilon)
-                    * mini_advantages
-                )
-                actor_loss = -th.min(surr_1, surr_2).mean()
+                # Entropy Loss
+                entropy = -(new_log_probs.exp() * new_log_probs).mean()
 
-                # (Total Loss)
-                loss = (
-                    critic_coef * critic_loss
-                    + actor_loss
-                    - entropy_coef * th.mean(-th.exp(new_log_probs) * new_log_probs)
-                )
-
+                # Total Loss
+                total_loss = actor_loss + critic_coef * critic_loss - entropy_coef * entropy                 
+                
                 # Update:
                 optimizer.zero_grad()
-                loss.backward()
+                total_loss.backward()
                 
                 # Clipping the gradients is proven to accelerate convergence: https://arxiv.org/pdf/1905.11881
                 th.nn.utils.clip_grad_norm_(actor_critic_net.parameters(), max_grad_norm)
 
                 optimizer.step()
+
+            logger.info(f"Episode {episode} completed. Actor Loss: {actor_loss.item():.4f}, Critic Loss: {critic_loss.item():.4f}, Entropy: {entropy.item():.4f}")
+            
+            if logging_callback:
+                logger.info(logging_callback())
+
 
 
 

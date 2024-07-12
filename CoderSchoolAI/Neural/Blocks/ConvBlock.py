@@ -105,7 +105,7 @@ class ConvBlock(Block):
             or self.forward_connections.d_type == Block.Type.JOIN
         ):
             return x
-        
+         
         # Another Linear Block or a Output Block
         return self.forward_connections.forward(x)
 
