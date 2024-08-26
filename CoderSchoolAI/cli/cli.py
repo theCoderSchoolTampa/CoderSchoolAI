@@ -1,6 +1,6 @@
 import argparse
 from CoderSchoolAI import *
-from CoderSchoolAI.Environment.CoderSchoolEnvironments.SnakeEnvironment import *
+from CoderSchoolAI.Environments.CoderSchoolEnvironments.SnakeEnvironment import *
 
 
 def demo():

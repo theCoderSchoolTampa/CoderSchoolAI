@@ -1,6 +1,6 @@
 ### Testing Neural Network ###
 # from CoderSchoolAI import *
-# from CoderSchoolAI.Environment.CoderSchoolEnvironments.SnakeEnvironment import *
+# from CoderSchoolAI.Environments.CoderSchoolEnvironments.SnakeEnvironment import *
 
 # def learn(snake_env, steps=10000, save_file="./QSnakeAgent.pkl", log_interval=1000):
 #     s = 0
@@ -42,7 +42,7 @@
 
 
 ### Testing Neural Network ###
-# from CoderSchoolAI.Environment.CoderSchoolEnvironments.SnakeEnvironment import *
+# from CoderSchoolAI.Environments.CoderSchoolEnvironments.SnakeEnvironment import *
 # from CoderSchoolAI.Neural.Blocks import *
 # from CoderSchoolAI.Neural.Net import *
 # import torch as th
@@ -62,7 +62,7 @@
 
 ### Testing Algorithms ###
 # from CoderSchoolAI.Training.Algorithms import deep_q_learning
-# from CoderSchoolAI.Environment.Agent import BasicReplayBuffer
+# from CoderSchoolAI.Environments.Agent import BasicReplayBuffer
 # batch_size = 32
 # deep_q_learning(
 #     agent=snake_env.snake_agent,
@@ -79,8 +79,8 @@
 # )
 
 ### Testing MSIT ###
-# from CoderSchoolAI.Environment.CoderSchoolEnvironments.SnakeEnvironment import *
-# from CoderSchoolAI.Environment.Attributes import *
+# from CoderSchoolAI.Environments.CoderSchoolEnvironments.SnakeEnvironment import *
+# from CoderSchoolAI.Environments.Attributes import *
 # from CoderSchoolAI.Neural.Blocks import *
 # from CoderSchoolAI.Neural.Net import *
 
@@ -107,8 +107,8 @@
 """
 Here is the Basic template for Building a Neural Network for our Snake!
 """
-# from CoderSchoolAI.Environment.CoderSchoolEnvironments.SnakeEnvironment import *
-# from CoderSchoolAI.Environment.CoderSchoolEnvironments.FrozenLakeEnvironment import *
+# from CoderSchoolAI.Environments.CoderSchoolEnvironments.SnakeEnvironment import *
+# from CoderSchoolAI.Environments.CoderSchoolEnvironments.FrozenLakeEnvironment import *
 
 # from CoderSchoolAI.Neural.Blocks import *
 # from CoderSchoolAI.Neural.Net import *
@@ -141,30 +141,35 @@ Here is the Basic template for Building a Neural Network for our Snake!
 """
 On Policy: PPO Agents
 """
-from CoderSchoolAI.Environment.CoderSchoolEnvironments.SnakeEnvironment import *
+from CoderSchoolAI.Environments.CoderSchoolEnvironments.SnakeEnvironment import *
 from CoderSchoolAI.Neural.Blocks import *
 from CoderSchoolAI.Neural.Net import *
 from CoderSchoolAI.Neural.ActorCritic.ActorCriticNetwork import *
 import torch as th
 
-snake_env = SnakeEnv(width=16, height=16)
+
+## Snake Env
+snake_env = SnakeEnv(width=8, height=8)
 print("attr:", snake_env.ObsAttributes)
 input_block = DictInputBlock(
     in_attributes={ "game_state": snake_env["game_state"] }, 
     modules={
-        "game_state": ConvBlock(input_shape=snake_env["game_state"].shape, num_channels=1, depth=5),
+        # "game_state": ConvBlock(input_shape=snake_env["game_state"].shape, num_channels=1, depth=3, disable_max_pool=True, activation=nn.GELU, padding=0),
+        "game_state": FlattenBlock(input_shape=snake_env["game_state"].shape, num_channels=1, depth=3, disable_max_pool=True, activation=nn.GELU, padding=0),
     },
     device="cuda"
 )
+
+
 lin_block = LinearBlock(
     input_size=input_block.output_size, 
     hidden_size=512, 
     use_layer_norm=True, 
-    dropout=0.3, 
+    dropout=0.05, 
     activation=nn.GELU, 
     device="cuda", 
     num_hidden_layers=1, 
-    output_size=512
+    output_size=32
 )
 
 
@@ -179,11 +184,11 @@ actor_critic_net = ActorCritic(
     snake_env["game_state"], 
     snake_env["actions"], 
     ppo_net, 
-    net_arch=[512, dict(vf=[128, 128, 32], pi=[64, 64])],
+    net_arch=[128, dict(vf=[128, 128, 128], pi=[128, 128])],
     activation_fnc=nn.GELU,
 )
 from CoderSchoolAI.Training.Algorithms import PPO
-from CoderSchoolAI.Environment.Agent import BasicReplayBuffer, DictReplayBuffer
+from CoderSchoolAI.Environments.Agent import BasicReplayBuffer, DictReplayBuffer
 batch_size = 512
 
 PPO(
@@ -191,15 +196,66 @@ PPO(
     environment=snake_env,
     actor_critic_net=actor_critic_net,
     buffer=DictReplayBuffer(batch_size),
-    alpha=0.005,
+    alpha=0.001,
     num_episodes=10000,
     max_steps_per_episode=100,
-    batch_size=128,
+    batch_size=512 * 2 * 2,
+    minibatch_size=512,
+    critic_coef=0.5,
+    entropy_coef=0.001,
+    ppo_epochs=2,
+    clip_epsilon=0.5,
+    reward_norm_coef=0.3,
+    reward_normalization=False,
+    max_grad_norm=31.5,
+    # logging_callback=lambda: f"Apples Eaten: "
+)
+
+from CoderSchoolAI.Environments.CoderSchoolEnvironments.SimpleGridEnv import SimpleGridEnv
+
+
+grid_env = SimpleGridEnv(grid_size=5)
+print("attr:", grid_env.ObsAttributes)
+print("attr:", grid_env.ActionAttributes)
+
+input_block = DictInputBlock(
+    in_attributes={ "agent_pos": grid_env["agent_pos"] }, 
+    modules={
+        "agent_pos": LinearBlock(input_size=grid_env["agent_pos"].shape[0], output_size=64,),
+    },
+    
+    device="cuda"
+)
+
+ppo_net = Net(name='test_ppo_net_with_game_state')
+ppo_net.add_block(input_block)
+ppo_net.compile()
+
+actor_critic_net = ActorCritic(
+    grid_env["agent_pos"], 
+    grid_env["action"], 
+    ppo_net, 
+    net_arch=[64, dict(vf=[32], pi=[64, 32])],
+    activation_fnc=nn.GELU,
+)
+
+from CoderSchoolAI.Training.Algorithms import PPO
+from CoderSchoolAI.Environments.Agent import BasicReplayBuffer, DictReplayBuffer
+batch_size = 128
+
+PPO(
+    agent=grid_env.agent,
+    environment=grid_env,
+    actor_critic_net=actor_critic_net,
+    buffer=DictReplayBuffer(batch_size),
+    alpha=0.003,
+    num_episodes=10000,
+    max_steps_per_episode=100,
+    batch_size=512,
     minibatch_size=128,
-    critic_coef=0.3,
-    entropy_coef=0.05,
+    critic_coef=0.35,
+    entropy_coef=0.001,
     ppo_epochs=1,
     reward_norm_coef=1.0,
     reward_normalization=True,
-    logging_callback=lambda: f"Apples Eaten: "
 )

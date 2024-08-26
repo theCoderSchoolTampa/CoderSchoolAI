@@ -1,9 +1,9 @@
 import numpy as np
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
-from CoderSchoolAI.Environment.Shell import Shell, BoxType, DictType, DiscreteType, MultiDiscreteType, MultiBinaryType
-from CoderSchoolAI.Environment.Attributes import ObsAttribute, ActionAttribute
-from CoderSchoolAI.Environment.Agent import Agent
-from CoderSchoolAI.Environment.Shell import Shell
+from CoderSchoolAI.Environments.Shell import Shell, BoxType, DictType, DiscreteType, MultiDiscreteType, MultiBinaryType
+from CoderSchoolAI.Environments.Attributes import ObsAttribute, ActionAttribute
+from CoderSchoolAI.Environments.Agent import Agent
+from CoderSchoolAI.Environments.Shell import Shell
 
 SpaceType = Union[BoxType, DiscreteType, MultiDiscreteType, MultiBinaryType]
 """

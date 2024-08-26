@@ -1,7 +1,7 @@
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 import torch as th
 import torch.nn as nn
-from CoderSchoolAI.Environment.Attributes import *
+from CoderSchoolAI.Environments.Attributes import *
 from CoderSchoolAI.Neural.Block import *
 import numpy as np
 
@@ -14,6 +14,7 @@ class ConvBlock(Block):
         input_shape: int,
         num_channels: int,
         depth: int = 3,
+        padding: Union[str, int] = "same",
         disable_max_pool: bool = False,
         desired_output_size: int = None,
         activation: Optional[Callable] = None,
@@ -40,6 +41,7 @@ class ConvBlock(Block):
         self.input_channels = num_channels
         self._desired_output_size = desired_output_size
         self.depth = depth
+        self.padding = padding
         self.module = None
         self.output_size = None
         self.disable_max_pool = disable_max_pool
@@ -123,7 +125,7 @@ class ConvBlock(Block):
                     prev_num_filters,
                     num_filters,
                     kernel_size=3,
-                    padding="same",
+                    padding=self.padding,
                     device=self.device,
                 )
             )
@@ -132,10 +134,12 @@ class ConvBlock(Block):
                 layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
             prev_num_filters = num_filters
         layers.append(nn.Flatten())
-        x = th.zeros(self.input_shape).unsqueeze(0)
+        x = th.zeros(self.input_shape).unsqueeze(0).to(self.device)
         for l in layers:
+            l.to(self.device)
             x = l(x)
         self.output_size = int(x.shape[1])
+        
         if self._desired_output_size is not None:
             layers.append(
                 nn.Linear(
@@ -144,6 +148,7 @@ class ConvBlock(Block):
             )
             layers.append(self.activation_function())
             self.output_size = int(self._desired_output_size)
+            
         return nn.Sequential(*layers)
 
     def copy(self):

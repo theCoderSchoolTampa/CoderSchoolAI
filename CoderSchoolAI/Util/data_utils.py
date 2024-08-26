@@ -1,7 +1,7 @@
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 import torch as th
 import numpy as np
-from CoderSchoolAI.Environment.Attributes import Attribute
+from CoderSchoolAI.Environments.Attributes import Attribute
 
 
 def get_minibatches(

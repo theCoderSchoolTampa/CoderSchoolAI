@@ -1,7 +1,7 @@
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 import numpy as np
 
-from CoderSchoolAI.Environment.Attributes import ObsAttribute, ActionAttribute
+from CoderSchoolAI.Environments.Attributes import ObsAttribute, ActionAttribute
 
 
 class Agent:

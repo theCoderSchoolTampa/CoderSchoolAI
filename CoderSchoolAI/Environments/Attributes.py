@@ -39,10 +39,11 @@ class Attribute:
         """
         return np.shape(self.data)
 
-    def update(self, data):
+    def update(self, data=None):
         """
         Updates the attribute data and its shape.
         """
+        # assert  
         self.data = data
         self.shape = self._get_shape()
 

@@ -1,10 +1,26 @@
 import numpy as np
-from typing import Dict, Union, Tuple
-from CoderSchoolAI.Environment.Shell import Shell
-from CoderSchoolAI.Environment.Attributes import ObsAttribute, ActionAttribute
+from typing import Dict, Union, Tuple, Any
+from CoderSchoolAI.Environments.Shell import Shell
+from CoderSchoolAI.Environments.Attributes import ObsAttribute, ActionAttribute
 from gymnasium.spaces import Discrete, Box
+from enum import IntEnum
+from CoderSchoolAI.Environments.Agent import Agent
 
-class SimpleGridWorld(Shell):
+class SimpleGridAgent(Agent):
+    class Actions(IntEnum):
+        UP = 0
+        RIGHT = 1
+        DOWN = 2
+        LEFT = 3
+        
+    def __init__(self):
+        self.pos = None
+        
+    def get_actions(self):
+        return list(SimpleGridAgent.Actions)
+            
+    
+class SimpleGridEnv(Shell):
     def __init__(
         self,
         grid_size: int = 5,
@@ -17,13 +33,13 @@ class SimpleGridWorld(Shell):
             target_fps=target_fps,
             is_user_control=is_user_control,
             resolution=(grid_size * 20, grid_size * 20),
-            environment_name="SimpleGridWorld",
+            environment_name="SimpleGridEnv",
             verbose=verbose,
             console_only=console_only
         )
-        
+        self.agent = SimpleGridAgent()
         self.grid_size = grid_size
-        self.agent_pos = [0, 0]
+        self.agent.pos = [0, 0]
         self.goal_pos = [grid_size - 1, grid_size - 1]
         
         # Register attributes
@@ -38,16 +54,16 @@ class SimpleGridWorld(Shell):
         self.register_attribute(
             ActionAttribute(
                 name="action",
-                space=Discrete(4)  # 0: up, 1: right, 2: down, 3: left
+                space=Discrete(len(self.agent.get_actions()))  # 0: up, 1: right, 2: down, 3: left
             )
         )
 
     def __update_agent_pos(self):
-        self["agent_pos"].data = np.array(self.agent_pos, dtype=np.float32)
+        self["agent_pos"].update(np.array(self.agent.pos, dtype=np.float32))
 
     def reset(self, attributes=None) -> Dict[str, np.ndarray]:
-        self.agent_pos = [0, 0]
-        self.__update_agent_pos()
+        self.agent.pos = [0, 0]
+        self["agent_pos"].update_func()
         return self.get_observation(attributes)
 
     def step(
@@ -58,37 +74,42 @@ class SimpleGridWorld(Shell):
     ) -> Tuple[Dict[str, np.ndarray], float, bool]:
         # Move agent based on action
         if action == 0:  # up
-            self.agent_pos[1] = max(0, self.agent_pos[1] - 1)
+            self.agent.pos[1] = max(0, self.agent.pos[1] - 1)
         elif action == 1:  # right
-            self.agent_pos[0] = min(self.grid_size - 1, self.agent_pos[0] + 1)
+            self.agent.pos[0] = min(self.grid_size - 1, self.agent.pos[0] + 1)
         elif action == 2:  # down
-            self.agent_pos[1] = min(self.grid_size - 1, self.agent_pos[1] + 1)
+            self.agent.pos[1] = min(self.grid_size - 1, self.agent.pos[1] + 1)
         elif action == 3:  # left
-            self.agent_pos[0] = max(0, self.agent_pos[0] - 1)
+            self.agent.pos[0] = max(0, self.agent.pos[0] - 1)
 
-        self.__update_agent_pos()
+        self["agent_pos"].update_func()
 
+        reward, done, info = self.get_current_reward(action)
+
+        return self.get_observation(attributes), reward, done
+
+    def get_current_reward(self, action: int) -> Tuple[float, bool, Dict[str, Any]]:
+        info = {}
+        
         # Check if goal is reached
-        done = (self.agent_pos == self.goal_pos)
+        done = (self.agent.pos == self.goal_pos)
 
         # Calculate reward
         if done:
             reward = 1.0
+            
         else:
             reward = -0.01  # Small negative reward for each step
-
-        return self.get_observation(attributes), reward, done
-
-    def get_current_reward(self, action: int) -> Tuple[float, bool]:
-        # This method is not used in this simple environment
-        pass
+            
+        return reward, done, info
 
     def render_env(self):
         if not self.console_only:
             # Implement rendering logic here if needed
             pass
         else:
-            print(f"Agent position: {self.agent_pos}")
+            pass
+            # print(f"Agent position: {self.agent.pos}")
 
     def update_env(self):
         # This method is not needed for this simple environment

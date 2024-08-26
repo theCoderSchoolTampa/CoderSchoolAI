@@ -10,13 +10,13 @@ from CoderSchoolAI.Util.data_utils import (
     dict_to_tensor,
 )
 from CoderSchoolAI.Neural.ActorCritic.ActorCriticNetwork import ActorCritic
-from CoderSchoolAI.Environment.Agent import (
+from CoderSchoolAI.Environments.Agent import (
     Agent,
     ReplayBuffer,
     BasicReplayBuffer,
     DictReplayBuffer,
 )
-from CoderSchoolAI.Environment.Shell import Shell
+from CoderSchoolAI.Environments.Shell import Shell
 from CoderSchoolAI.Neural.Net import Net
 from collections import defaultdict
 
@@ -144,7 +144,7 @@ def deep_q_learning(
                 num_episodes_for_logging += 1
                 if num_episodes_for_logging % log_frequency == 0:
                     avg_reward = cumulative_reward / log_frequency
-                    print(
+                    logger.info(
                         f"Episode: {episode}, Avg Reward: {avg_reward}, Epsilon: {epsilon}"
                     )
                     # Reset cumulative_reward and num_episodes_for_logging
@@ -240,7 +240,7 @@ def deep_q_learning(
         # Compute loss
         loss = F.mse_loss(current_q_values_for_actions, target_q_values.detach())
         if episode % log_frequency == 0:
-            print("Loss:", loss.item())
+            logger.info("Loss:", loss.item())
         
         # Update:
         optimizer.zero_grad()
@@ -323,7 +323,7 @@ def PPO(
     )
     
     if isinstance(agent.get_actions(), dict):
-        pass
+        raise NotImplementedError("PPO is not currently supported with Dict action spaces.")
 
     if reward_normalization:
         reward_normalizer = RunningMeanStd()
@@ -347,7 +347,9 @@ def PPO(
         )
         step = 0
         while not buffer.size() > batch_size:
-            environment.clock.tick(fps)
+            if hasattr(environment, "clock"):
+                environment.clock.tick(fps)
+                
             if done:
                 state = (
                     environment.reset(attributes)
@@ -430,17 +432,21 @@ def PPO(
             last_advantage = delta + gamma * last_advantage * (1 - dones[t])
             advantages[t] = last_advantage
         
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
         return advantages
 
-    def compute_returns(rewards, dones, device):
+    def compute_returns(rewards, vals, dones, device):
+        """
+        Computes the return for the the Policy
+        """
         rewards = th.tensor(rewards, dtype=th.float32, device=device)
         dones = th.tensor(dones, dtype=th.float32, device=device)
         returns = th.zeros_like(rewards, device=device)
-        last_return = 0
+        vals = vals.detach()
         for t in range(len(rewards) - 2, -1, -1):
-            last_return = rewards[t] + gamma * last_return * (1 - dones[t])
-            returns[t] = last_return
+            returns[t] = rewards[t] + gamma * vals[t + 1] * (1 - dones[t])
+            
+        # returns = (returns - returns.mean()) / (returns.std() + 1e-8)
         return returns
     
     def evaluate_actions(states, actions):
@@ -489,7 +495,7 @@ def PPO(
 
         advantages = compute_advantages(rewards, vals, dones, actor_critic_net.device)
         # Compute Temporal Difference
-        returns = compute_returns(rewards, dones, actor_critic_net.device)
+        returns = compute_returns(rewards, vals, dones, actor_critic_net.device)
         
         actor_critic_net.train()
 
@@ -622,7 +628,7 @@ class QLearning:
         dict: Loaded Q-Table.
         """
         if not os.path.exists(file_name):
-            print("Cannot find file: {}".format(file_name))
+            logger.info(f"Cannot find file: {file_name}")
             return
         with open(file_name, "rb") as f:
             self.q_table = pickle.load(f)

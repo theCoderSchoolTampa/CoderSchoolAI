@@ -3,7 +3,7 @@ from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
-from CoderSchoolAI.Environment.Attributes import *
+from CoderSchoolAI.Environments.Attributes import *
 import numpy as np
 from enum import Enum
 

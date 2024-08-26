@@ -12,7 +12,7 @@ from gymnasium.spaces import Dict as DictType
 from gymnasium.spaces import Discrete as DiscreteType
 from gymnasium.spaces import MultiDiscrete as MultiDiscreteType
 from gymnasium.spaces import MultiBinary as MultiBinaryType
-from CoderSchoolAI.Environment.Attributes import ObsAttribute, ActionAttribute
+from CoderSchoolAI.Environments.Attributes import ObsAttribute, ActionAttribute
 
 SpaceType = Union[BoxType, DiscreteType, MultiDiscreteType, MultiBinaryType]
 

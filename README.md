@@ -24,7 +24,7 @@ The main components of CoderSchoolAI are:
 
 - **Training**: This sub-module includes implementation of reinforcement learning algorithms, such as Deep Q Learning and Q Learning, and functions to facilitate the training process of agents.
 
-- **Buffer**: This contains various types of replay buffers for experience replay in reinforcement learning algorithms.
+- **Utils**: This contains various types utils including replay buffers for experience replay in reinforcement learning algorithms, search utils, data utils and more!
 
 Detailed usage and documentation of these components are provided in subsequent sections of this document.
 
@@ -458,7 +458,7 @@ class OutputBlock(Block):
 Here is an example of constructing a network using this library for the SnakeEnv:
 
 ```python
-from CoderSchoolAI.Environment.CoderSchoolEnvironments.SnakeEnvironment import *
+from CoderSchoolAI.Environments.CoderSchoolEnvironments.SnakeEnvironment import *
 from CoderSchoolAI.Neural.Blocks import *
 from CoderSchoolAI.Neural.Net import *
 import torch as th
@@ -484,6 +484,107 @@ output_copy_test = copy_net(input_sample)
 ## Overview
 
 The module provides functionalities for training reinforcement learning models. It includes methods for Deep Q-Learning, Q-Learning, and utility functions for Q-Learning such as loading and saving Q-Tables. The main functions in this module revolve around training a given agent in a specific environment, as well as updating the parameters of the agent as it interacts with the environment.
+
+### `Datasets`
+
+The `CoderSchoolAI.Training.Datasets` module provides several pre-implemented datasets that are ready to use:
+
+- MNIST
+- CIFAR-10
+- Fashion-MNIST
+- CIFAR-100
+- ImageNet
+
+First, you must create a Network for the dataset:
+```python
+from CoderSchoolAI.Environments.CoderSchoolEnvironments.SnakeEnvironment import *
+from CoderSchoolAI.Environments.Attributes import *
+from CoderSchoolAI.Neural.Blocks import *
+from CoderSchoolAI.Neural.Net import *
+from CoderSchoolAI.Training.Datasets import train_on_dataset, MNISTDataset
+
+device = "cuda"
+
+# the image is a 28x28 grid of pixels ranging between 0 and 1, this is where our shape comes from.
+# the input block will take our image as input and output to the rest of the netwrok
+image = ObsAttribute(name="img", space=BoxType(-1, 1, shape=(1, 28, 28)))
+input_block = InputBlock(in_attribute=image, device=device)
+
+# Define the ConvBlock which acts as a convolutional layer for processing the data. A channel size of 1 defines the image as a black and white image, and the depth of 4 creates 4 layers of convolutions deep for the image.
+conv_block = ConvBlock(input_shape=input_block.in_attribute.space.shape, num_channels=1, depth=4, device=device)
+
+# the OutputBlock will map from the convolutional block to an output for each of our 10 digits.
+# The num_classes corresponds to the number of possible digits our network might see.
+out_block = OutputBlock(input_size=conv_block.output_size, num_classes=10, device=device)
+
+# Initializes the network and add the blocks
+# By this point we have a network that can see the image, perform convolutions to the image and then output to the 10 digits in the MNIST dataset:
+net = Net(device='cuda')
+
+for block in (input_block, conv_block, out_block):
+    net.add_block(block)
+
+net.compile()
+```
+
+To use these datasets, you can import them directly from the module:
+
+```python
+from CoderSchoolAI.Training.Datasets import MNISTDataset, CIFAR10Dataset, FashionMNISTDataset, CIFAR100Dataset, ImageNetDataset
+
+# Create a dataset instance
+mnist_dataset = MNISTDataset()
+cifar10_dataset = CIFAR10Dataset()
+fashion_mnist_dataset = FashionMNISTDataset()
+cifar100_dataset = CIFAR100Dataset()
+imagenet_dataset = ImageNetDataset(root='/path/to/imagenet')  # ImageNet requires your machine to have a root path configured with this dataset in ImageNet format
+```
+
+You can then use these datasets with the train_on_dataset function:
+
+```python
+from CoderSchoolAI.Training.Datasets import train_on_dataset
+
+train_on_dataset(net, mnist_dataset, epochs=5)
+```
+
+### Custom Transforms
+Each dataset comes with a default transform, but you can provide your own custom transform:
+
+```python
+from torchvision import transforms
+
+custom_transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.5,), (0.5,))
+])
+
+mnist_dataset = MNISTDataset(transform=custom_transform)
+```
+
+### Creating Custom Datasets
+Creating datasets is useful to interface to the train function. To create a custom dataset, you need to inherit from the Dataset base class and implement the _load_data and _default_transform methods:
+
+```python
+from CoderSchoolAI.Training.Datasets import Dataset, DatasetOrigin
+from torchvision import transforms
+
+class CustomDataset(Dataset):
+    def __init__(self, transform=None):
+        super().__init__(DatasetOrigin.CUSTOM, transform)
+
+    def _load_data(self):
+        # Load your dataset here
+        # Set self.trainset, self.testset, and self.num_classes
+        pass
+
+    def _default_transform(self):
+        return transforms.Compose([
+            transforms.ToTensor(),
+            # Add any other necessary transforms
+        ])
+```
+
 
 ## `deep_q_learning()` Function
 
@@ -513,15 +614,83 @@ def deep_q_learning(
     pass
 ```
 
-### `FloatDict()` Class
+## `PPO()` Function
 
-This class is a custom dictionary with default float values. It is derived from Python's `defaultdict` and can be used to conveniently instantiate a dictionary that has default float values when a key is accessed that has not been set.
+This function implements the Proximal Policy Optimization (PPO) algorithm, which is used to train an agent in a given environment. PPO is an on-policy algorithm that aims to compute an update at each step that minimizes the cost function while ensuring the deviation from the previous policy is relatively small.
 
 ```python
-class FloatDict(defaultdict):
-    def __init__(self, *args):
-        super().__init__(float)
+def PPO(
+    agent: Agent,
+    environment: Union[Shell, List[Shell]],
+    actor_critic_net: ActorCritic,
+    buffer: Union[BasicReplayBuffer, DictReplayBuffer],
+    num_episodes: int = 1000,
+    max_steps_per_episode: int = 100,
+    gamma: float = 0.99,
+    batch_size: int = 32,
+    clip_epsilon: float = 0.2,
+    alpha: float = 0.001,
+    epsilon: float = 0.0001,
+    entropy_coef: float = 0.005,
+    critic_coef: float = 0.8,
+    attributes: Union[str, Tuple[str]] = None,
+    optimizer: Optional[th.optim.Optimizer] = None,
+    optimizer_kwargs: Optional[Dict[str, Any]] = None,
+    ppo_epochs: int = 4,
+    minibatch_size: int = 16,
+    fps: int = 120,
+    max_grad_norm: float = 1.0,
+    reward_norm_coef: float = 1.0,
+    reward_normalization: bool = True,
+    running_reward_std: float = 1.0,
+    log_frequency: int = 10,
+    logging_callback: Optional[Callable] = None,
+) -> None:
+    pass
 ```
+
+### Parameters:
+
+- `agent` (Agent): The agent that interacts with the environment.
+- `environment` (Union[Shell, List[Shell]]): The environment(s) in which the agent operates.
+- `actor_critic_net` (ActorCritic): The neural network that serves as both the actor and the critic.
+- `buffer` (Union[BasicReplayBuffer, DictReplayBuffer]): The replay buffer to store experiences.
+- `num_episodes` (int): The total number of episodes to train for.
+- `max_steps_per_episode` (int): The maximum number of steps allowed in each episode.
+- `gamma` (float): The discount factor for future rewards.
+- `batch_size` (int): The size of each batch used for training.
+- `clip_epsilon` (float): The clipping parameter for PPO.
+- `alpha` (float): The learning rate for the optimizer.
+- `epsilon` (float): A small value to prevent division by zero.
+- `entropy_coef` (float): The coefficient for the entropy term in the loss function.
+- `critic_coef` (float): The coefficient for the critic loss in the total loss function.
+- `attributes` (Union[str, Tuple[str]]): The attributes to be used by the network.
+- `optimizer` (Optional[th.optim.Optimizer]): The optimizer to use for training.
+- `optimizer_kwargs` (Optional[Dict[str, Any]]): Additional keyword arguments for the optimizer.
+- `ppo_epochs` (int): The number of epochs to train on each batch of data.
+- `minibatch_size` (int): The size of mini-batches used in each PPO epoch.
+- `fps` (int): The frames per second for environment execution.
+- `max_grad_norm` (float): The maximum norm for gradient clipping.
+- `reward_norm_coef` (float): The coefficient for reward normalization.
+- `reward_normalization` (bool): Whether to use reward normalization.
+- `running_reward_std` (float): The running standard deviation of rewards for normalization.
+- `log_frequency` (int): How often to log training progress.
+- `logging_callback` (Optional[Callable]): An optional callback function for custom logging.
+
+
+### Description:
+
+The PPO algorithm improves upon previous policy gradient methods by using a surrogate objective function and clipped probability ratios. This approach helps to ensure stable learning by preventing excessively large policy updates.
+
+Key features of this implementation include:
+
+1. Support for both single and multiple environments.
+2. Use of an actor-critic architecture for improved stability.
+3. Clipping of the surrogate objective to prevent too large policy updates.
+4. Separate coefficients for entropy and critic loss to balance exploration and value estimation.
+5. Option for reward normalization to handle varying scales of rewards across different environments.
+6. Gradient clipping to prevent exploding gradients.
+7. Flexible logging options including a custom callback for detailed monitoring.
 
 ### `QLearning()` Class
 
@@ -557,7 +726,7 @@ Here is an example of using these functionalities in the context of training a r
 
 ```python
 from CoderSchoolAI.Agent import Agent
-from CoderSchoolAI.Environment.Shell import Shell
+from CoderSchoolAI.Environments.Shell import Shell
 from CoderSchoolAI.Neural.Net import Net
 from CoderSchoolAI.Training import deep_q_learning, QLearning
 from CoderSchoolAI.Buffer import BasicReplayBuffer

@@ -11,3 +11,5 @@ MANIFEST.in
 
 # compiled/extra un-necessary python files
 *.pyc
+
+**/*.pyc

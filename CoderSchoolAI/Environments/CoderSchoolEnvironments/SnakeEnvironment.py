@@ -4,9 +4,9 @@ import numpy as np
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 import pygame
 import gymnasium as gym
-from CoderSchoolAI.Environment.Attributes import ObsAttribute, ActionAttribute
-from CoderSchoolAI.Environment.Agent import Agent
-from CoderSchoolAI.Environment.Shell import Shell, BoxType, DictType, DiscreteType, MultiDiscreteType, MultiBinaryType
+from CoderSchoolAI.Environments.Attributes import ObsAttribute, ActionAttribute
+from CoderSchoolAI.Environments.Agent import Agent
+from CoderSchoolAI.Environments.Shell import Shell, BoxType, DictType, DiscreteType, MultiDiscreteType, MultiBinaryType
 
 SpaceType = Union[BoxType, DiscreteType, MultiDiscreteType, MultiBinaryType]
 """
@@ -19,7 +19,7 @@ from CoderSchoolAI.Training.Algorithms import QLearning
 from CoderSchoolAI.Util.data_utils import distance, euclidean_distance
 from CoderSchoolAI.Util.search_utils import HeapQueue
 
-# They are the same function, some would rather use distance because it makes more sense.
+# They are the same function, some would rather use distance be................................................................................................cause it makes more sense.
 
 
 class SnakeAgent(Agent):
@@ -492,12 +492,13 @@ class SnakeEnv(Shell):
             info["reset_apple_position"] = self._soft_reset
             
         # Here we assign rewards for different viewable attributes of the environment.
-        distance_penalty = distance_to_apple / euclidean_distance((self.width, self.height), (0, 0)) # fraction of distance compared to size of grid        
+        distance_penalty = 0 # distance_to_apple / euclidean_distance((self.width, self.height), (0, 0)) # fraction of distance compared to size of grid        
+        feedback = 0
         length_of_snake_reward = length_of_snake / self.max_length_of_snake # how big the snake is vs. how big it could be
         
         apple_eaten_reward = int(apple_consumed) * (1 +  int(length_of_snake == 0) * 5) # Apple eaten: 1st time gives 5 reward else 1
         
-        reward = -0.1 + apple_eaten_reward + 2 * length_of_snake_reward - distance_penalty + feedback
+        reward = -0.01 + apple_eaten_reward + 2 * length_of_snake_reward - distance_penalty + feedback
         
         return reward, apple_consumed and length_of_snake == self.max_length_of_snake, info
 
@@ -603,18 +604,18 @@ class SnakeEnv(Shell):
         )  # Snake head
 
     def __update_game_state_callback(self):
-        self["game_state"].data = self.game_state.copy().transpose(2, 0, 1) / len(
+        self["game_state"].update(self.game_state.copy().transpose(2, 0, 1) / len(
             list(SnakeAgent.SnakeAction)
-        )
+        ))
 
     def __update_moving_direction_callback(self):
-        self["moving_direction"].data = int(self.__last_moving_direction)
+        self["moving_direction"].update(int(self.__last_moving_direction))
 
     def __update_apple_pos_callback(self):
-        self["apple_pos"].data = np.array(self.apple_position).copy()
+        self["apple_pos"].update(np.array(self.apple_position).copy())
 
     def __update_snake_head_callback(self):
-        self["snake_pos"].data = np.array(self.snake_agent.body[-1]).copy()
+        self["snake_pos"].update(np.array(self.snake_agent.body[-1]).copy())
 
     def spawn_new_apple(self) -> Tuple[int, int]:
         """

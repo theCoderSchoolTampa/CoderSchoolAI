@@ -1,7 +1,7 @@
 from typing import List, Tuple, Dict, Any, Optional, Union, Callable
 import torch as th
 import torch.nn as nn
-from CoderSchoolAI.Environment.Attributes import *
+from CoderSchoolAI.Environments.Attributes import *
 from CoderSchoolAI.Neural.Block import *
 import numpy as np
 
